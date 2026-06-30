@@ -4,10 +4,12 @@ import { useState } from 'react'
 import { ArrowRight } from 'lucide-react'
 import { motion, AnimatePresence, MotionConfig, type Variants } from 'motion/react'
 import { ArtPeople, ArtHabit, ArtSettle } from './OnboardingArt'
+import { RiveScene } from './RiveScene'
 import { markOnboarded } from '@/lib/onboarding'
 
 interface Slide {
   Art: () => JSX.Element
+  riv: string // /rive/<name>.riv — used if present, else Art fallback
   eyebrow: string
   title: string
   body: string
@@ -16,18 +18,21 @@ interface Slide {
 const SLIDES: Slide[] = [
   {
     Art: ArtPeople,
+    riv: '/rive/people.riv',
     eyebrow: 'Step 1',
     title: 'All your people, one list',
     body: 'Add the people you pay regularly — rent, family, suppliers. Bundl can even detect them from your wallet.',
   },
   {
     Art: ArtHabit,
+    riv: '/rive/habit.riv',
     eyebrow: 'Step 2',
     title: 'Build the habit',
     body: 'Commit a little each day toward your monthly total and keep your streak alive. Your money stays in your wallet.',
   },
   {
     Art: ArtSettle,
+    riv: '/rive/settle.riv',
     eyebrow: 'Step 3',
     title: 'Settle in one tap',
     body: 'Pay everyone at once in a single transaction — confirmed with one tap, with a native MiniPay receipt.',
@@ -109,7 +114,7 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
               else if (info.offset.x > 60) go(index - 1)
             }}
           >
-            <slide.Art />
+            <RiveScene src={slide.riv} fallback={<slide.Art />} />
           </motion.div>
         </AnimatePresence>
       </div>
