@@ -5,6 +5,8 @@ import { ArrowRight } from 'lucide-react'
 import { motion, AnimatePresence, MotionConfig, type Variants } from 'motion/react'
 import { ArtPeople, ArtHabit, ArtSettle } from './OnboardingArt'
 import { RiveScene } from './RiveScene'
+import { MeshGradient } from './MeshGradient'
+import { Grain } from './Grain'
 import { markOnboarded } from '@/lib/onboarding'
 
 interface Slide {
@@ -70,17 +72,12 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
   return (
     <MotionConfig reducedMotion="user">
     <div className="fixed inset-0 z-[60] bg-surface flex flex-col overflow-hidden">
-      {/* ambient, slowly breathing gradient mesh */}
-      <motion.div
-        className="absolute -top-24 -left-16 w-72 h-72 bg-brand/25 rounded-full blur-3xl pointer-events-none"
-        animate={{ scale: [1, 1.15, 1], opacity: [0.7, 1, 0.7] }}
-        transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
-      />
-      <motion.div
-        className="absolute top-1/3 -right-20 w-64 h-64 bg-brand-light/20 rounded-full blur-3xl pointer-events-none"
-        animate={{ scale: [1.1, 1, 1.1], opacity: [0.6, 0.9, 0.6] }}
-        transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }}
-      />
+      {/* animated WebGL mesh-gradient background */}
+      <MeshGradient className="absolute inset-0 w-full h-full" />
+      {/* readability scrim — fades the gradient into the surface where copy sits */}
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-surface/30 to-surface pointer-events-none" />
+      {/* film grain */}
+      <Grain opacity={0.05} />
 
       {/* top bar */}
       <div
@@ -101,7 +98,7 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
           <motion.div
             key={index}
             custom={dir}
-            className="w-full max-w-[320px] aspect-[6/5]"
+            className="w-full max-w-[320px] aspect-[6/5] rounded-[28px] bg-surface-raised/55 backdrop-blur-xl border border-white/15 shadow-sheet p-3"
             initial={{ opacity: 0, x: dir * 80, scale: 0.92 }}
             animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={{ opacity: 0, x: dir * -80, scale: 0.92 }}
