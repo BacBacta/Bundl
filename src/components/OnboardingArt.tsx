@@ -1,7 +1,14 @@
-// Bespoke, animated illustrations for the onboarding slides.
-// Hand-built SVG scenes using the brand palette with sequenced entrances and
-// ambient motion (ring draw, value flow, flame flicker, hub ripple).
-// Animations are defined in globals.css and replay each time a slide mounts.
+'use client'
+
+// Bespoke, orchestrated illustrations for onboarding.
+// Spring-based entrances + ambient motion via Framer Motion, plus a signature
+// moment per scene: rows assembling, a ring drawing with a counting value, and
+// real tokens flowing from a hub out to each recipient.
+
+import { motion, useMotionValue, useTransform, animate, type Variants } from 'motion/react'
+import { useEffect, useState } from 'react'
+
+const SPRING = { type: 'spring', stiffness: 220, damping: 18 } as const
 
 const DEFS = (
   <defs>
@@ -17,8 +24,16 @@ const DEFS = (
       <stop offset="0%" stopColor="#FFFFFF" />
       <stop offset="100%" stopColor="#F3F7F5" />
     </linearGradient>
-    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+    <radialGradient id="g-coin" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0%" stopColor="#5BD6AC" />
+      <stop offset="100%" stopColor="#0F6E56" />
+    </radialGradient>
+    <filter id="soft" x="-40%" y="-40%" width="180%" height="180%">
       <feDropShadow dx="0" dy="8" stdDeviation="12" floodColor="#0F6E56" floodOpacity="0.16" />
+    </filter>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="4" result="b" />
+      <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
     </filter>
   </defs>
 )
@@ -26,145 +41,207 @@ const DEFS = (
 const AV = ['#0F6E56', '#2563EB', '#DB2777', '#EA580C']
 
 function Stage() {
-  return <rect x="6" y="6" width="228" height="188" rx="34" fill="url(#bg-stage)" />
+  return (
+    <motion.rect
+      x="6" y="6" width="228" height="188" rx="34" fill="url(#bg-stage)"
+      initial={{ opacity: 0, scale: 0.96 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.5 }}
+    />
+  )
 }
 
-// Slide 1 — a contact list assembling, row by row.
+// ── Slide 1 — contact list assembling ──────────────────────────────
 export function ArtPeople() {
+  const container: Variants = {
+    hidden: {},
+    show: { transition: { delayChildren: 0.2, staggerChildren: 0.14 } },
+  }
+  const row: Variants = {
+    hidden: { opacity: 0, x: -24 },
+    show: { opacity: 1, x: 0, transition: SPRING },
+  }
   return (
     <svg viewBox="0 0 240 200" className="w-full h-full" fill="none">
       {DEFS}
       <Stage />
-      <g className="art-pop art-el" filter="url(#soft)">
-        <rect x="42" y="40" width="156" height="120" rx="22" fill="url(#g-card)" />
-      </g>
-      {[0, 1, 2].map((i) => (
-        <g
-          key={i}
-          className="art-rise art-el"
-          style={{ animationDelay: `${250 + i * 160}ms` }}
-          transform={`translate(58, ${56 + i * 34})`}
-        >
-          <circle cx="13" cy="13" r="13" fill={AV[i]} />
-          <text x="13" y="17.5" textAnchor="middle" fontSize="12" fontWeight="700" fill="white">
-            {['M', 'R', 'S'][i]}
-          </text>
-          <rect x="36" y="6" width="66" height="8" rx="4" fill="#11181C" opacity="0.82" />
-          <rect x="36" y="19" width="42" height="6" rx="3" fill="#11181C" opacity="0.26" />
-          <rect x="122" y="9" width="28" height="10" rx="5" fill="#1D9E75" opacity="0.9" />
-        </g>
-      ))}
-      <g className="art-float art-el" style={{ animationDelay: '300ms' }}>
-        <g className="art-pop art-el" style={{ animationDelay: '820ms' }}>
-          <circle cx="184" cy="150" r="19" fill="url(#g-green)" filter="url(#soft)" />
-          <path d="M177 150 H191 M184 143 V157" stroke="white" strokeWidth="3.2" strokeLinecap="round" />
-        </g>
-      </g>
+      <motion.rect
+        x="42" y="40" width="156" height="120" rx="22" fill="url(#g-card)" filter="url(#soft)"
+        initial={{ opacity: 0, scale: 0.8, y: 12 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={SPRING}
+      />
+      <motion.g variants={container} initial="hidden" animate="show">
+        {[0, 1, 2].map((i) => (
+          <motion.g key={i} variants={row} transform={`translate(58, ${56 + i * 34})`}>
+            <circle cx="13" cy="13" r="13" fill={AV[i]} />
+            <text x="13" y="17.5" textAnchor="middle" fontSize="12" fontWeight="700" fill="white">
+              {['M', 'R', 'S'][i]}
+            </text>
+            <rect x="36" y="6" width="66" height="8" rx="4" fill="#11181C" opacity="0.82" />
+            <rect x="36" y="19" width="42" height="6" rx="3" fill="#11181C" opacity="0.26" />
+            <motion.rect
+              x="122" y="9" width="28" height="10" rx="5" fill="#1D9E75"
+              initial={{ scale: 0 }} animate={{ scale: 1 }}
+              transition={{ ...SPRING, delay: 0.5 + i * 0.14 }}
+              style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
+            />
+          </motion.g>
+        ))}
+      </motion.g>
+      <motion.g
+        initial={{ scale: 0, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1, y: [0, -5, 0] }}
+        transition={{
+          scale: { ...SPRING, delay: 0.95 }, opacity: { delay: 0.95 },
+          y: { duration: 3, repeat: Infinity, ease: 'easeInOut', delay: 1.2 },
+        }}
+        style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
+      >
+        <circle cx="184" cy="150" r="19" fill="url(#g-green)" filter="url(#soft)" />
+        <path d="M177 150 H191 M184 143 V157" stroke="white" strokeWidth="3.2" strokeLinecap="round" />
+      </motion.g>
     </svg>
   )
 }
 
-// Slide 2 — a goal ring drawing in, with a flickering streak flame.
+// ── Slide 2 — goal ring drawing with a counting value ──────────────
+function CountUp({ to, suffix = '%' }: { to: number; suffix?: string }) {
+  const mv = useMotionValue(0)
+  const rounded = useTransform(mv, (v) => `${Math.round(v)}${suffix}`)
+  useEffect(() => {
+    const controls = animate(mv, to, { duration: 1.2, delay: 0.35, ease: [0.22, 1, 0.36, 1] })
+    return controls.stop
+  }, [mv, to])
+  return (
+    <motion.text textAnchor="middle" y="6" fontSize="26" fontWeight="700" fill="#0F6E56">
+      {rounded as unknown as string}
+    </motion.text>
+  )
+}
+
 export function ArtHabit() {
   const r = 48
-  const c = 2 * Math.PI * r
   const pct = 0.72
   return (
     <svg viewBox="0 0 240 200" className="w-full h-full" fill="none">
       {DEFS}
       <Stage />
-      <g transform="translate(120, 88)">
-        <circle className="art-pop art-el" r={r + 8} fill="url(#g-card)" filter="url(#soft)" />
-        <circle r={r} fill="none" stroke="#0F6E56" strokeOpacity="0.12" strokeWidth="11" />
-        <circle
-          className="art-ring art-el"
-          r={r}
-          fill="none"
-          stroke="url(#g-green)"
-          strokeWidth="11"
-          strokeLinecap="round"
-          strokeDasharray={c}
-          transform="rotate(-90)"
-          style={{ ['--c' as string]: c, ['--target' as string]: c * (1 - pct), animationDelay: '350ms' }}
+      <g transform="translate(120, 86)">
+        <motion.circle
+          r={r + 9} fill="url(#g-card)" filter="url(#soft)"
+          initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={SPRING}
+          style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
         />
-        <g className="art-flicker art-el">
-          <path
-            d="M0 -22 C11 -9 18 -4 18 7 a18 18 0 1 1 -36 0 c0 -9 6 -13 10 -20 c1 7 4 9 8 10 c-2 -7 -1 -13 -10 -17 z"
-            fill="url(#g-green)"
-            transform="scale(0.92)"
-          />
-          <path d="M0 4 c5 3 7 7 5 12 a8 8 0 0 1 -10 -2 c0 -5 3 -7 5 -10 z" fill="#FFFFFF" opacity="0.45" />
-        </g>
+        <circle r={r} fill="none" stroke="#0F6E56" strokeOpacity="0.12" strokeWidth="11" />
+        <motion.circle
+          r={r} fill="none" stroke="url(#g-green)" strokeWidth="11" strokeLinecap="round"
+          transform="rotate(-90)"
+          initial={{ pathLength: 0 }} animate={{ pathLength: pct }}
+          transition={{ duration: 1.2, delay: 0.35, ease: [0.22, 1, 0.36, 1] }}
+        />
+        <CountUp to={pct * 100} />
       </g>
+      {/* flame badge */}
+      <motion.g
+        transform="translate(120, 86)"
+        initial={{ scale: 0, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ ...SPRING, delay: 1.1 }}
+        style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
+      >
+        <motion.g
+          transform="translate(34, 34)"
+          animate={{ scale: [1, 1.12, 1], rotate: [0, -3, 2, 0] }}
+          transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+          style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
+        >
+          <circle r="15" fill="white" />
+          <path d="M0 -9 C5 -3 8 -1 8 4 a8 8 0 1 1 -16 0 c0 -4 3 -6 4.5 -9 c0.5 3 2 4 3.5 4.5 c-1 -3 -0.5 -6 -4 -7.5 z"
+            fill="url(#g-green)" filter="url(#glow)" />
+        </motion.g>
+      </motion.g>
+      {/* streak dots */}
       {[0, 1, 2, 3, 4].map((i) => (
-        <circle
-          key={i}
-          className="art-pop art-el"
-          style={{ animationDelay: `${700 + i * 110}ms` }}
-          cx={72 + i * 24}
-          cy="166"
-          r="6.5"
+        <motion.circle
+          key={i} cx={72 + i * 24} cy="168" r="6.5"
           fill={i < 4 ? '#1D9E75' : '#0F6E56'}
-          opacity={i < 4 ? 1 : 0.2}
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: i < 4 ? 1 : 0.2 }}
+          transition={{ ...SPRING, delay: 0.8 + i * 0.1 }}
+          style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
         />
       ))}
     </svg>
   )
 }
 
-// Slide 3 — one hub dispersing value to several recipients.
+// ── Slide 3 — value dispersing from a hub to recipients ────────────
 export function ArtSettle() {
-  const nodes = [
-    { x: 54, y: 50 },
-    { x: 186, y: 50 },
-    { x: 46, y: 152 },
-    { x: 194, y: 152 },
-  ]
   const hub = { x: 120, y: 100 }
+  const nodes = [
+    { x: 54, y: 50 }, { x: 186, y: 50 }, { x: 46, y: 152 }, { x: 194, y: 152 },
+  ]
   return (
     <svg viewBox="0 0 240 200" className="w-full h-full" fill="none">
       {DEFS}
       <Stage />
+
+      {/* connector lines drawing out */}
       {nodes.map((n, i) => (
-        <line
-          key={`l${i}`}
-          className="art-flow"
-          x1={hub.x}
-          y1={hub.y}
-          x2={n.x}
-          y2={n.y}
-          stroke="url(#g-green)"
-          strokeWidth="3"
-          strokeOpacity="0.5"
-          strokeDasharray="3 9"
-          strokeLinecap="round"
-          style={{ animationDelay: `${i * 200}ms` }}
+        <motion.line
+          key={`l${i}`} x1={hub.x} y1={hub.y} x2={n.x} y2={n.y}
+          stroke="#1D9E75" strokeOpacity="0.35" strokeWidth="2.5" strokeLinecap="round"
+          initial={{ pathLength: 0 }} animate={{ pathLength: 1 }}
+          transition={{ duration: 0.5, delay: 0.5 + i * 0.1, ease: 'easeOut' }}
         />
       ))}
+
+      {/* travelling tokens (the money flowing out) */}
       {nodes.map((n, i) => (
-        <g key={`n${i}`} transform={`translate(${n.x}, ${n.y})`}>
-          <g className="art-float art-el" style={{ animationDelay: `${i * 300}ms` }}>
-            <g className="art-pop art-el" style={{ animationDelay: `${500 + i * 140}ms` }}>
-              <circle r="17" fill="url(#g-card)" filter="url(#soft)" />
-              <circle r="13" fill={AV[i]} opacity="0.16" />
-              <circle r="6.5" fill={AV[i]} />
-            </g>
-          </g>
-        </g>
+        <motion.circle
+          key={`c${i}`} r="5" fill="url(#g-coin)" filter="url(#glow)"
+          initial={{ cx: hub.x, cy: hub.y, opacity: 0 }}
+          animate={{ cx: [hub.x, n.x], cy: [hub.y, n.y], opacity: [0, 1, 1, 0] }}
+          transition={{ duration: 1.5, repeat: Infinity, delay: 1 + i * 0.25, ease: 'easeInOut', times: [0, 0.15, 0.85, 1] }}
+        />
       ))}
-      {/* hub with ripple */}
+
+      {/* recipient nodes */}
+      {nodes.map((n, i) => (
+        <motion.g
+          key={`n${i}`}
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1, y: [0, -4, 0] }}
+          transition={{
+            scale: { ...SPRING, delay: 0.55 + i * 0.12 }, opacity: { delay: 0.55 + i * 0.12 },
+            y: { duration: 3 + i * 0.3, repeat: Infinity, ease: 'easeInOut', delay: 1 },
+          }}
+          style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
+          transform={`translate(${n.x}, ${n.y})`}
+        >
+          <circle r="17" fill="url(#g-card)" filter="url(#soft)" />
+          <circle r="13" fill={AV[i]} opacity="0.16" />
+          <circle r="6.5" fill={AV[i]} />
+        </motion.g>
+      ))}
+
+      {/* hub with breathing ripple */}
       <g transform={`translate(${hub.x}, ${hub.y})`}>
-        <circle className="art-ripple art-el" r="28" fill="#1D9E75" />
-        <g className="art-pop art-el">
+        <motion.circle
+          r="29" fill="#1D9E75"
+          animate={{ scale: [0.8, 1.7], opacity: [0.4, 0] }}
+          transition={{ duration: 2.2, repeat: Infinity, ease: 'easeOut' }}
+          style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
+        />
+        <motion.g
+          initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ ...SPRING, delay: 0.25 }}
+          style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
+        >
           <circle r="29" fill="url(#g-green)" filter="url(#soft)" />
-          <path
-            d="M-9 0 h18 M2 -7 l7 7 l-7 7"
-            stroke="white"
-            strokeWidth="3.6"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </g>
+          <path d="M-9 0 h18 M2 -7 l7 7 l-7 7" stroke="white" strokeWidth="3.6"
+            strokeLinecap="round" strokeLinejoin="round" />
+        </motion.g>
       </g>
     </svg>
   )

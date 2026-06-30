@@ -2,20 +2,9 @@
 
 import { useState } from 'react'
 import { ArrowRight } from 'lucide-react'
+import { motion, AnimatePresence, MotionConfig, type Variants } from 'motion/react'
 import { ArtPeople, ArtHabit, ArtSettle } from './OnboardingArt'
-
-const KEY = 'bundl_onboarded'
-
-export function hasOnboarded(): boolean {
-  if (typeof window === 'undefined') return true
-  // ?intro=1 forces the intro to show again (no console needed on MiniPay).
-  if (new URLSearchParams(window.location.search).get('intro') === '1') return false
-  return localStorage.getItem(KEY) === '1'
-}
-
-export function resetOnboarding() {
-  localStorage.removeItem(KEY)
-}
+import { markOnboarded } from '@/lib/onboarding'
 
 interface Slide {
   Art: () => JSX.Element
@@ -45,45 +34,84 @@ const SLIDES: Slide[] = [
   },
 ]
 
+// Text block reveals with a spring stagger.
+const textContainer: Variants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.08, delayChildren: 0.05 } },
+}
+const textItem: Variants = {
+  hidden: { opacity: 0, y: 16 },
+  show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 260, damping: 22 } },
+}
+
 export function Onboarding({ onDone }: { onDone: () => void }) {
-  const [index, setIndex] = useState(0)
+  const [[index, dir], setState] = useState<[number, number]>([0, 1])
   const slide = SLIDES[index]
   const last = index === SLIDES.length - 1
 
   function finish() {
-    localStorage.setItem(KEY, '1')
+    markOnboarded()
     onDone()
   }
-
+  function go(to: number) {
+    if (to < 0 || to >= SLIDES.length) return
+    setState([to, to > index ? 1 : -1])
+  }
   function next() {
     if (last) finish()
-    else setIndex((i) => i + 1)
+    else go(index + 1)
   }
 
   return (
-    <div className="fixed inset-0 z-[60] bg-surface flex flex-col animate-fade-in overflow-hidden">
-      {/* ambient gradient mesh */}
-      <div className="absolute -top-24 -left-16 w-72 h-72 bg-brand/25 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute top-1/3 -right-20 w-64 h-64 bg-brand-light/20 rounded-full blur-3xl pointer-events-none" />
+    <MotionConfig reducedMotion="user">
+    <div className="fixed inset-0 z-[60] bg-surface flex flex-col overflow-hidden">
+      {/* ambient, slowly breathing gradient mesh */}
+      <motion.div
+        className="absolute -top-24 -left-16 w-72 h-72 bg-brand/25 rounded-full blur-3xl pointer-events-none"
+        animate={{ scale: [1, 1.15, 1], opacity: [0.7, 1, 0.7] }}
+        transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
+      />
+      <motion.div
+        className="absolute top-1/3 -right-20 w-64 h-64 bg-brand-light/20 rounded-full blur-3xl pointer-events-none"
+        animate={{ scale: [1.1, 1, 1.1], opacity: [0.6, 0.9, 0.6] }}
+        transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }}
+      />
 
-      {/* top bar: brand + skip */}
+      {/* top bar */}
       <div
         className="relative flex justify-between items-center px-5 pt-3"
         style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}
       >
         <span className="text-heading font-bold text-content tracking-tight">Bundl</span>
         {!last && (
-          <button onClick={finish} className="text-caption text-content-subtle px-2 py-1">
+          <button onClick={finish} className="text-caption text-content-subtle px-2 py-1 active:opacity-60">
             Skip
           </button>
         )}
       </div>
 
-      {/* illustration */}
+      {/* illustration — swipeable, with directional spring slide */}
       <div className="relative flex-1 flex items-center justify-center px-6">
-        <div key={index} className="w-full max-w-[320px] aspect-[6/5] animate-fade-in">
-          <slide.Art />
-        </div>
+        <AnimatePresence initial={false} custom={dir} mode="popLayout">
+          <motion.div
+            key={index}
+            custom={dir}
+            className="w-full max-w-[320px] aspect-[6/5]"
+            initial={{ opacity: 0, x: dir * 80, scale: 0.92 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{ opacity: 0, x: dir * -80, scale: 0.92 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 26 }}
+            drag="x"
+            dragConstraints={{ left: 0, right: 0 }}
+            dragElastic={0.5}
+            onDragEnd={(_, info) => {
+              if (info.offset.x < -60) next()
+              else if (info.offset.x > 60) go(index - 1)
+            }}
+          >
+            <slide.Art />
+          </motion.div>
+        </AnimatePresence>
       </div>
 
       {/* copy + controls */}
@@ -91,36 +119,50 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
         className="relative px-7 pb-10"
         style={{ paddingBottom: 'calc(2.5rem + env(safe-area-inset-bottom))' }}
       >
-        <p key={`e${index}`} className="text-caption font-semibold text-brand mb-2 animate-fade-in">
-          {slide.eyebrow}
-        </p>
-        <h1 key={`t${index}`} className="text-display text-content mb-3 animate-fade-in">
-          {slide.title}
-        </h1>
-        <p key={`b${index}`} className="text-body text-content-muted leading-relaxed mb-7 animate-fade-in">
-          {slide.body}
-        </p>
+        <AnimatePresence mode="wait">
+          <motion.div key={index} variants={textContainer} initial="hidden" animate="show" exit={{ opacity: 0 }}>
+            <motion.p variants={textItem} className="text-caption font-semibold text-brand mb-2">
+              {slide.eyebrow}
+            </motion.p>
+            <motion.h1 variants={textItem} className="text-display text-content mb-3">
+              {slide.title}
+            </motion.h1>
+            <motion.p variants={textItem} className="text-body text-content-muted leading-relaxed">
+              {slide.body}
+            </motion.p>
+          </motion.div>
+        </AnimatePresence>
 
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mt-7">
           <div className="flex gap-2">
             {SLIDES.map((_, i) => (
-              <span
+              <motion.button
                 key={i}
-                className={`h-1.5 rounded-full transition-all duration-300 ${
-                  i === index ? 'w-6 bg-brand' : 'w-1.5 bg-line'
-                }`}
-              />
+                onClick={() => go(i)}
+                className="h-1.5 rounded-full bg-line overflow-hidden"
+                animate={{ width: i === index ? 24 : 6 }}
+                transition={{ type: 'spring', stiffness: 320, damping: 26 }}
+              >
+                {i === index && (
+                  <motion.span
+                    layoutId="dot-fill"
+                    className="block h-full w-full bg-brand rounded-full"
+                  />
+                )}
+              </motion.button>
             ))}
           </div>
-          <button
+          <motion.button
             onClick={next}
-            className="flex items-center gap-2 pl-6 pr-5 py-3.5 rounded-pill font-semibold text-white bg-brand shadow-ring active:scale-95 transition-transform"
+            whileTap={{ scale: 0.94 }}
+            className="flex items-center gap-2 pl-6 pr-5 py-3.5 rounded-pill font-semibold text-white bg-brand shadow-ring"
           >
             {last ? 'Get started' : 'Next'}
             <ArrowRight size={18} />
-          </button>
+          </motion.button>
         </div>
       </div>
     </div>
+    </MotionConfig>
   )
 }

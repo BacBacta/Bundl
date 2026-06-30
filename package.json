@@ -16,6 +16,7 @@
     "@celo/contractkit": "^11.0.0",
     "@celo/identity": "^5.1.2",
     "lucide-react": "^1.22.0",
+    "motion": "^12.42.1",
     "next": "^14.2.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import dynamic from 'next/dynamic'
 import { Plus, CalendarClock, ShieldCheck, Flame } from 'lucide-react'
 import { BottomNav } from '@/components/BottomNav'
 import { Header } from '@/components/Header'
@@ -8,8 +9,13 @@ import { RecipientRow } from '@/components/RecipientRow'
 import { SettleSheet } from '@/components/SettleSheet'
 import { ReminderBanner } from '@/components/ReminderBanner'
 import { DetectedPayments } from '@/components/DetectedPayments'
-import { Onboarding, hasOnboarded } from '@/components/Onboarding'
+import { hasOnboarded } from '@/lib/onboarding'
 import { SkeletonRow } from '@/components/Skeleton'
+
+// Lazy — pulls the animation lib only when the intro actually shows.
+const Onboarding = dynamic(() => import('@/components/Onboarding').then((m) => m.Onboarding), {
+  ssr: false,
+})
 import { getAccount, isMiniPay } from '@/lib/wallet'
 import { usd, round2 } from '@/lib/format'
 import { getAllStablecoinBalances, redirectToDeposit, type StablecoinBalance } from '@/lib/stablecoin'

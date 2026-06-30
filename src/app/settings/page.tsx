@@ -9,7 +9,7 @@ import {
 import { exportBackup, importBackup } from '@/lib/storage'
 import { BottomNav } from '@/components/BottomNav'
 import { ThemeToggle } from '@/components/ThemeToggle'
-import { resetOnboarding } from '@/components/Onboarding'
+import { resetOnboarding } from '@/lib/onboarding'
 
 export default function SettingsPage() {
   const router = useRouter()
