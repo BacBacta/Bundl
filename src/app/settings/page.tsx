@@ -5,8 +5,10 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   Download, Upload, Info, ShieldCheck, FileText, Lock, LifeBuoy, BarChart3, ChevronRight, Sparkles,
+  UserPlus, QrCode,
 } from 'lucide-react'
 import { exportBackup, importBackup } from '@/lib/storage'
+import { DEEPLINKS } from '@/lib/tokens'
 import { BottomNav } from '@/components/BottomNav'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { resetOnboarding } from '@/lib/onboarding'
@@ -52,6 +54,12 @@ export default function SettingsPage() {
       <Card title="Appearance">
         <ThemeToggle />
       </Card>
+
+      {/* Share */}
+      <div className="bg-surface-raised border border-line rounded-card shadow-card divide-y divide-line mb-4">
+        <LinkRow href={DEEPLINKS.inviteFriends} external Icon={UserPlus} label="Invite friends" />
+        <LinkRow href={DEEPLINKS.qr} external Icon={QrCode} label="My QR code" />
+      </div>
 
       {/* Data transparency */}
       <div className="bg-warning/10 rounded-card p-4 mb-4">

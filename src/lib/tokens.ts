@@ -99,6 +99,9 @@ export const SOCIALCONNECT = {
 export const DEEPLINKS = {
   addCash: 'https://link.minipay.xyz/add_cash',
   receipt: (txHash: string) => `https://link.minipay.xyz/receipt?tx=${txHash}`,
+  inviteFriends: 'https://link.minipay.xyz/invite_friends',
+  qr: 'https://link.minipay.xyz/qr',
+  discover: 'https://link.minipay.xyz/discover',
 } as const
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

@@ -8,14 +8,17 @@ import { RecipientRow } from '@/components/RecipientRow'
 import { usd } from '@/lib/format'
 import {
   type Recurring,
+  type Frequency,
   getRecurring,
   addRecurring,
   updateRecurring,
   deleteRecurring,
+  monthlyEquivalent,
 } from '@/lib/storage'
 import { pickContact } from '@/lib/socialconnect'
 
-const EMPTY_FORM = { name: '', address: '', amount: '' }
+const EMPTY_FORM = { name: '', address: '', amount: '', frequency: 'monthly' as Frequency }
+const FREQUENCIES: Frequency[] = ['weekly', 'biweekly', 'monthly']
 
 export default function RecurringPage() {
   const [items, setItems] = useState<Recurring[]>([])
@@ -28,7 +31,7 @@ export default function RecurringPage() {
     setItems(getRecurring())
   }, [])
 
-  const monthlyTotal = items.reduce((s, r) => s + r.amount, 0)
+  const monthlyTotal = items.reduce((s, r) => s + monthlyEquivalent(r), 0)
 
   function openAdd() {
     setForm(EMPTY_FORM)
@@ -38,7 +41,12 @@ export default function RecurringPage() {
   }
 
   function openEdit(item: Recurring) {
-    setForm({ name: item.name, address: item.address, amount: String(item.amount) })
+    setForm({
+      name: item.name,
+      address: item.address,
+      amount: String(item.amount),
+      frequency: item.frequency ?? 'monthly',
+    })
     setErrors({})
     setEditing(item)
     setSheet('edit')
@@ -73,6 +81,7 @@ export default function RecurringPage() {
       name: form.name.trim(),
       address: form.address as `0x${string}`,
       amount: parseFloat(form.amount),
+      frequency: form.frequency,
     }
     if (sheet === 'add') {
       setItems((prev) => [...prev, addRecurring(data)])
@@ -125,7 +134,7 @@ export default function RecurringPage() {
                 name={item.name}
                 address={item.address}
                 amount={item.amount}
-                cadence="monthly"
+                cadence={item.frequency ?? 'monthly'}
                 onClick={() => openEdit(item)}
               />
             ))}
@@ -177,6 +186,24 @@ export default function RecurringPage() {
             <Field label="Name" value={form.name} onChange={(v) => setForm((f) => ({ ...f, name: v }))} placeholder="e.g. Rent, Mum, supplier" error={errors.name} />
             <Field label="Wallet address" value={form.address} onChange={(v) => setForm((f) => ({ ...f, address: v }))} placeholder="0x…" error={errors.address} mono />
             <Field label="Amount (USD)" value={form.amount} onChange={(v) => setForm((f) => ({ ...f, amount: v }))} placeholder="0" error={errors.amount} inputMode="decimal" />
+
+            <div>
+              <label className="text-caption font-medium text-content-muted mb-1 block">Frequency</label>
+              <div className="flex gap-1 bg-surface-sunken rounded-card p-1">
+                {FREQUENCIES.map((freq) => (
+                  <button
+                    key={freq}
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, frequency: freq }))}
+                    className={`flex-1 py-2 rounded-[14px] text-caption font-semibold capitalize transition-colors ${
+                      form.frequency === freq ? 'bg-surface-raised text-brand shadow-card' : 'text-content-subtle'
+                    }`}
+                  >
+                    {freq}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             <button
               onClick={handleSave}

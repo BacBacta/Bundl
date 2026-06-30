@@ -3,11 +3,26 @@
 // "potBalance" is a commitment tracker only — funds stay in the user's wallet.
 // The on-chain balance is always read fresh before enabling Settle.
 
+export type Frequency = 'weekly' | 'biweekly' | 'monthly'
+
 export interface Recurring {
   id: string
   name: string
   address: `0x${string}`
   amount: number
+  frequency?: Frequency // defaults to 'monthly' for entries saved before this field
+}
+
+// How many times per month each frequency occurs — used to normalise the
+// monthly savings target while each settlement still pays the face amount.
+export const MONTHLY_FACTOR: Record<Frequency, number> = {
+  weekly: 4.345,
+  biweekly: 2.172,
+  monthly: 1,
+}
+
+export function monthlyEquivalent(r: Recurring): number {
+  return r.amount * MONTHLY_FACTOR[r.frequency ?? 'monthly']
 }
 
 export interface DailyDeposit {

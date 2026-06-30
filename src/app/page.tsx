@@ -33,6 +33,7 @@ import {
   addBundle,
   getSettlementTokenKey,
   setSettlementTokenKey,
+  monthlyEquivalent,
 } from '@/lib/storage'
 
 export default function Home() {
@@ -79,7 +80,10 @@ export default function Home() {
     })
   }, [])
 
-  const monthlyTarget = round2(recurring.reduce((s, r) => s + r.amount, 0))
+  // Monthly savings target normalises each payment by its frequency…
+  const monthlyTarget = round2(recurring.reduce((s, r) => s + monthlyEquivalent(r), 0))
+  // …while a settlement pays each recipient their face amount once.
+  const settleTotal = round2(recurring.reduce((s, r) => s + r.amount, 0))
   const dailyAmount = monthlyTarget > 0 ? Math.max(0.01, round2(monthlyTarget / 30)) : 5
   const potPercent = monthlyTarget > 0 ? Math.min(100, Math.round((potBalance / monthlyTarget) * 100)) : 0
   const potFull = monthlyTarget > 0 && potBalance >= monthlyTarget
@@ -99,7 +103,8 @@ export default function Home() {
 
   function handleAddDetected(s: DetectedPayment) {
     cacheName(s.address, s.name)
-    const item = addRecurring({ name: s.name, address: s.address, amount: s.suggestedAmount })
+    const frequency = s.cadence === 'weekly' || s.cadence === 'biweekly' ? s.cadence : 'monthly'
+    const item = addRecurring({ name: s.name, address: s.address, amount: s.suggestedAmount, frequency })
     setRecurring((prev) => [...prev, item])
   }
 
@@ -205,13 +210,13 @@ export default function Home() {
 
           <div className="divide-y divide-line mb-3">
             {recurring.map((r) => (
-              <RecipientRow key={r.id} name={r.name} address={r.address} amount={r.amount} cadence="monthly" />
+              <RecipientRow key={r.id} name={r.name} address={r.address} amount={r.amount} cadence={r.frequency ?? 'monthly'} />
             ))}
           </div>
 
           <div className="flex justify-between text-heading text-content border-t border-line pt-3 mb-3">
             <span>Total</span>
-            <span>${usd(monthlyTarget)}</span>
+            <span>${usd(settleTotal)}</span>
           </div>
 
           {/* Token picker */}
@@ -238,7 +243,7 @@ export default function Home() {
 
           {tokenLoading ? (
             <div className="py-1"><SkeletonRow /></div>
-          ) : selectedToken && selectedToken.humanBalance >= monthlyTarget ? (
+          ) : selectedToken && selectedToken.humanBalance >= settleTotal ? (
             <button
               onClick={() => setSettling(true)}
               className="w-full py-3.5 rounded-card font-semibold text-white bg-brand shadow-ring active:scale-[0.99] transition-transform"
@@ -248,7 +253,7 @@ export default function Home() {
           ) : selectedToken && selectedToken.humanBalance > 0 ? (
             <div>
               <div className="bg-warning/10 text-warning text-caption rounded-card p-3 mb-2">
-                Wallet: ${usd(selectedToken.humanBalance)} {selectedToken.symbol} — need ${usd(monthlyTarget)}.
+                Wallet: ${usd(selectedToken.humanBalance)} {selectedToken.symbol} — need ${usd(settleTotal)}.
               </div>
               <button
                 onClick={redirectToDeposit}

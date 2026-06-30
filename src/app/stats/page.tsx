@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getBundles, getRecurring, getStreak } from '@/lib/storage'
+import { getBundles, getStreak } from '@/lib/storage'
+import { fetchContractStats, type ContractStats } from '@/lib/analytics'
 import { DISPERSE_ADDRESS, TOKENS } from '@/lib/tokens'
 
 // Public stats page — no wallet required (MiniPay listing requirement)
@@ -16,22 +17,24 @@ interface Stats {
 
 export default function StatsPage() {
   const [stats, setStats] = useState<Stats | null>(null)
+  const [chain, setChain] = useState<ContractStats | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const bundles = getBundles()
-    const recurring = getRecurring()
     const streak = getStreak()
-
     const totalVolume = bundles.reduce((s, b) => s + b.total, 0)
-    const totalRecipientPayments = bundles.reduce((s, b) => s + b.lines.length, 0)
-
     setStats({
       totalBundles: bundles.length,
       totalVolume,
-      totalRecipientPayments,
+      totalRecipientPayments: bundles.reduce((s, b) => s + b.lines.length, 0),
       streak,
-      tokenBreakdown: { mUSD: totalVolume }, // expand with multi-token in M5
+      tokenBreakdown: { mUSD: totalVolume },
     })
+
+    fetchContractStats()
+      .then(setChain)
+      .finally(() => setLoading(false))
   }, [])
 
   return (
@@ -39,19 +42,35 @@ export default function StatsPage() {
       <h1 className="text-2xl font-bold mb-1">Stats</h1>
       <p className="text-sm text-content-subtle mb-6">Public — no wallet required</p>
 
-      {/* On-chain metrics note */}
-      <div className="bg-warning/10 text-warning text-xs rounded-xl p-3 mb-6">
-        On-chain metrics (tx count, volume per stablecoin, network fees, failed-tx rate) require
-        an indexer. Track live at{' '}
-        <a
-          href={`https://celo-sepolia.blockscout.com/address/${DISPERSE_ADDRESS}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline"
-        >
-          Blockscout ↗
-        </a>
-      </div>
+      {/* On-chain metrics — live from the block explorer */}
+      <p className="text-xs font-semibold text-content-subtle mb-2 uppercase tracking-wide">On-chain (live)</p>
+      {loading ? (
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="skeleton h-16 rounded-2xl" />
+          ))}
+        </div>
+      ) : chain && chain.deployed ? (
+        <>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <Metric label="Settlements" value={chain.settlements} />
+            <Metric label="Unique users" value={chain.uniqueUsers} />
+            <Metric label="Settled (7d)" value={chain.last7d} />
+            <Metric label="Settled (30d)" value={chain.last30d} />
+            <Metric label="Network fees" value={`${chain.networkFees.toFixed(4)}`} hint="native" />
+            <Metric label="Failed-tx rate" value={`${(chain.failedRate * 100).toFixed(1)}%`} />
+          </div>
+          <p className="text-xs text-content-subtle mb-6">
+            Live from Blockscout. Volume per stablecoin + USD-converted fees need an indexer
+            (Goldsky / Dune) — see below.
+          </p>
+        </>
+      ) : (
+        <div className="bg-warning/10 text-warning text-xs rounded-xl p-3 mb-6">
+          Contract not deployed on this network yet — on-chain metrics will populate after the
+          first settlements.
+        </div>
+      )}
 
       {/* Local stats */}
       {stats && (
@@ -99,6 +118,18 @@ export default function StatsPage() {
         </p>
       </div>
     </main>
+  )
+}
+
+function Metric({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
+  return (
+    <div className="border border-line rounded-2xl px-3 py-2.5">
+      <p className="text-xl font-bold text-content tabular-nums">{value}</p>
+      <p className="text-xs text-content-subtle">
+        {label}
+        {hint && <span className="opacity-60"> · {hint}</span>}
+      </p>
+    </div>
   )
 }
 
