@@ -30,6 +30,7 @@ const config: Config = {
       },
       fontSize: {
         // Mobile type scale
+        'hero': ['3.25rem', { lineHeight: '1', fontWeight: '700', letterSpacing: '-0.03em' }],
         'display': ['2rem', { lineHeight: '2.25rem', fontWeight: '700', letterSpacing: '-0.02em' }],
         'title': ['1.375rem', { lineHeight: '1.75rem', fontWeight: '700', letterSpacing: '-0.01em' }],
         'heading': ['1.0625rem', { lineHeight: '1.5rem', fontWeight: '600' }],

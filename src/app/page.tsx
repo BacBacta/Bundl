@@ -1,10 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, CalendarClock, ShieldCheck } from 'lucide-react'
+import { Plus, CalendarClock, ShieldCheck, Flame } from 'lucide-react'
 import { BottomNav } from '@/components/BottomNav'
 import { Header } from '@/components/Header'
-import { GoalRing } from '@/components/GoalRing'
 import { RecipientRow } from '@/components/RecipientRow'
 import { SettleSheet } from '@/components/SettleSheet'
 import { ReminderBanner } from '@/components/ReminderBanner'
@@ -127,39 +126,49 @@ export default function Home() {
         onAdd={handleAddDetected}
       />
 
-      {/* Goal hero */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-brand-light via-brand to-brand-dark rounded-card p-5 text-white mb-4 shadow-card">
-        {/* decorative glow */}
-        <div className="absolute -top-16 -right-12 w-44 h-44 bg-white/10 rounded-full blur-2xl pointer-events-none" />
-        <div className="relative flex items-center gap-5">
-          <GoalRing
-            percent={potPercent}
-            label={`${potPercent}%`}
-            sublabel={streak > 0 ? `${streak}d streak` : 'of goal'}
-          />
-          <div className="min-w-0">
-            <p className="text-caption opacity-75">Savings goal</p>
-            <p className="text-display leading-none mt-0.5">${usd(potBalance)}</p>
-            {monthlyTarget > 0 && (
-              <p className="text-caption opacity-70 mt-1">of ${usd(monthlyTarget)}</p>
-            )}
-            {monthlyTarget > 0 && (
-              <span className="inline-flex items-center gap-1 mt-2.5 bg-white/15 rounded-pill px-2.5 py-1 text-micro font-medium">
-                <CalendarClock size={11} /> {daysUntilSettlement}d to settlement
-              </span>
-            )}
-          </div>
+      {/* Goal hero — clean fintech: big number, slim progress, one accent */}
+      <section className="mt-1 mb-7 px-1">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-caption text-content-muted font-medium">Savings goal</p>
+          {streak > 0 && (
+            <span className="inline-flex items-center gap-1 bg-brand/10 text-brand rounded-pill px-2.5 py-1 text-micro font-semibold">
+              <Flame size={12} /> {streak} day{streak > 1 ? 's' : ''}
+            </span>
+          )}
         </div>
-        <p className="relative flex items-center gap-1 text-micro opacity-60 mt-4">
-          <ShieldCheck size={11} /> Your funds stay in your wallet
-        </p>
-      </div>
+
+        <div className="flex items-baseline gap-2">
+          <p className="text-hero text-content">${usd(potBalance)}</p>
+          {monthlyTarget > 0 && (
+            <p className="text-heading text-content-subtle font-normal">/ ${usd(monthlyTarget)}</p>
+          )}
+        </div>
+
+        {monthlyTarget > 0 && (
+          <>
+            <div className="h-2 bg-surface-sunken rounded-pill overflow-hidden mt-5">
+              <div
+                className="h-full bg-brand rounded-pill transition-all duration-700"
+                style={{ width: `${potPercent}%` }}
+              />
+            </div>
+            <div className="flex items-center justify-between mt-2.5">
+              <span className="flex items-center gap-1 text-micro text-content-subtle">
+                <ShieldCheck size={11} /> Funds stay in your wallet
+              </span>
+              <span className="flex items-center gap-1 text-micro text-content-subtle">
+                <CalendarClock size={11} /> {daysUntilSettlement}d left
+              </span>
+            </div>
+          </>
+        )}
+      </section>
 
       {/* Empty state */}
       {recurring.length === 0 && (
         <a
           href="/recurring"
-          className="flex items-center justify-center gap-2 border border-dashed border-line rounded-card p-5 mb-4 text-brand font-medium active:opacity-70"
+          className="flex items-center justify-center gap-2 border border-dashed border-line rounded-card p-5 mb-5 text-brand font-medium active:opacity-70"
         >
           <Plus size={18} /> Add your first recurring payment
         </a>
@@ -170,12 +179,12 @@ export default function Home() {
         <button
           onClick={handleAddToPot}
           disabled={todayDone || potFull}
-          className="w-full py-4 rounded-card font-semibold text-white bg-brand shadow-ring disabled:opacity-40 disabled:shadow-none active:scale-[0.99] transition-transform mb-4"
+          className="w-full py-4 rounded-card font-semibold text-white bg-brand shadow-ring disabled:bg-surface-sunken disabled:text-content-subtle disabled:shadow-none active:scale-[0.99] transition-transform mb-5"
         >
           {todayDone
-            ? 'Committed today'
+            ? 'Committed today · come back tomorrow'
             : potFull
-            ? 'Goal reached'
+            ? 'Goal reached — settle below'
             : `Commit $${usd(dailyAmount)} today`}
         </button>
       )}
