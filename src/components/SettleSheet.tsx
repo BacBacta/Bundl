@@ -41,7 +41,7 @@ export function SettleSheet({ recurring, token, onSuccess, onClose }: Props) {
   function friendlyError(e: unknown): string {
     const msg = e instanceof Error ? e.message : String(e)
     if (/user rejected|denied|cancel/i.test(msg)) return 'Transaction cancelled.'
-    if (/insufficient.*fee|gas/i.test(msg)) return 'Not enough CELO for gas. Add a little CELO to your wallet.'
+    if (/insufficient.*fee|gas/i.test(msg)) return 'Not enough balance to cover the network fee. Add funds and try again.'
     if (/allowance|approve/i.test(msg)) return 'Approval failed. Please try again.'
     if (/timeout|network|fetch/i.test(msg)) return 'Network timeout. Check your connection and retry.'
     if (/revert/i.test(msg)) return 'Transaction reverted — a recipient address may be invalid.'

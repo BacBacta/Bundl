@@ -2,53 +2,51 @@
 
 import { BadgeCheck, Bell } from 'lucide-react'
 import { Avatar } from './Avatar'
-import { getCachedName, shortenAddress } from '@/lib/socialconnect'
+import { getCachedName } from '@/lib/socialconnect'
 
 interface Props {
   account: string | null
   inMiniPay: boolean
 }
 
-function greeting(): string {
-  const h = new Date().getHours()
-  if (h < 12) return 'Good morning'
-  if (h < 18) return 'Good afternoon'
-  return 'Good evening'
-}
-
+// MiniPay branding + identity rules:
+// - Show the app name + logo prominently (distinct from MiniPay).
+// - Never show a raw 0x… address as the primary identifier. We show the
+//   resolved handle (phone/alias) when known, otherwise just the avatar.
 export function Header({ account, inMiniPay }: Props) {
   const handle = account ? getCachedName(account) : null
 
   return (
     <header className="flex items-center justify-between mb-5">
-      <div className="flex items-center gap-3 min-w-0">
-        {account ? (
-          <>
-            <Avatar seed={account} label={handle ?? account} size={40} />
-            <div className="min-w-0">
-              <p className="text-micro text-content-subtle">{greeting()}</p>
-              <p className="text-heading text-content flex items-center gap-1 truncate">
-                {handle ?? shortenAddress(account)}
-                {handle && <BadgeCheck size={15} className="text-brand-light shrink-0" />}
-              </p>
-            </div>
-          </>
-        ) : (
-          <div>
-            <p className="text-title text-content">Bundl</p>
-            {!inMiniPay && (
-              <p className="text-micro text-warning">Open in MiniPay to connect</p>
-            )}
-          </div>
-        )}
+      {/* Brand lockup */}
+      <div className="flex items-center gap-2">
+        <span className="w-8 h-8 rounded-[10px] bg-gradient-to-br from-brand-light to-brand-dark flex items-center justify-center text-white font-display font-bold text-sm shadow-ring">
+          B
+        </span>
+        <span className="font-display text-heading font-bold text-content tracking-tight">Bundl</span>
       </div>
 
-      <button
-        className="w-10 h-10 flex items-center justify-center rounded-full bg-surface-sunken text-content-muted active:opacity-60"
-        aria-label="Notifications"
-      >
-        <Bell size={19} />
-      </button>
+      {/* Identity (handle only, never raw address) + actions */}
+      <div className="flex items-center gap-2.5">
+        {!account && !inMiniPay && (
+          <span className="text-micro text-warning bg-warning/10 rounded-pill px-2 py-1">
+            Open in MiniPay
+          </span>
+        )}
+        {handle && (
+          <span className="flex items-center gap-1 text-caption font-medium text-content max-w-[120px] truncate">
+            {handle}
+            <BadgeCheck size={14} className="text-brand-light shrink-0" />
+          </span>
+        )}
+        <button
+          className="w-9 h-9 flex items-center justify-center rounded-full bg-surface-sunken text-content-muted active:opacity-60"
+          aria-label="Notifications"
+        >
+          <Bell size={18} />
+        </button>
+        {account && <Avatar seed={account} label={handle ?? '?'} size={36} />}
+      </div>
     </header>
   )
 }

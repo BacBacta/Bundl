@@ -22,8 +22,8 @@ export default function TermsPage() {
         </Section>
 
         <Section title="4. Network fees">
-          Celo network fees (gas) apply to every transaction and are paid from your wallet. These
-          fees go to the Celo network, not to Bundl.
+          A small network fee applies to every transaction and is paid from your wallet. This fee
+          goes to the network, not to Bundl.
         </Section>
 
         <Section title="5. No financial advice">
