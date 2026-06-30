@@ -9,6 +9,13 @@ interface Props {
   inMiniPay: boolean
 }
 
+function greeting(): string {
+  const h = new Date().getHours()
+  if (h < 12) return 'Good morning'
+  if (h < 18) return 'Good afternoon'
+  return 'Good evening'
+}
+
 export function Header({ account, inMiniPay }: Props) {
   const handle = account ? getCachedName(account) : null
 
@@ -17,14 +24,12 @@ export function Header({ account, inMiniPay }: Props) {
       <div className="flex items-center gap-3 min-w-0">
         {account ? (
           <>
-            <Avatar seed={account} label={handle ?? account} size={38} />
+            <Avatar seed={account} label={handle ?? account} size={40} />
             <div className="min-w-0">
+              <p className="text-micro text-content-subtle">{greeting()}</p>
               <p className="text-heading text-content flex items-center gap-1 truncate">
                 {handle ?? shortenAddress(account)}
                 {handle && <BadgeCheck size={15} className="text-brand-light shrink-0" />}
-              </p>
-              <p className="text-micro text-content-subtle">
-                {handle ? shortenAddress(account) : 'Connected'}
               </p>
             </div>
           </>

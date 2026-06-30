@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { exportBackup, importBackup } from '@/lib/storage'
 import { BottomNav } from '@/components/BottomNav'
+import { ThemeToggle } from '@/components/ThemeToggle'
 
 export default function SettingsPage() {
   const [importStatus, setImportStatus] = useState<'idle' | 'ok' | 'error'>('idle')
@@ -38,6 +39,11 @@ export default function SettingsPage() {
   return (
     <main className="flex flex-col min-h-screen pb-24 px-4 pt-6">
       <h1 className="text-title text-content mb-5">Settings</h1>
+
+      {/* Appearance */}
+      <Card title="Appearance">
+        <ThemeToggle />
+      </Card>
 
       {/* Data transparency */}
       <div className="bg-warning/10 rounded-card p-4 mb-4">

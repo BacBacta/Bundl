@@ -16,10 +16,11 @@ export const viewport: Viewport = {
   ],
 }
 
-// Sync the .dark class with the OS preference before first paint (no flash).
+// Apply the saved theme before first paint (no flash). Mirrors lib/theme.ts.
 const themeScript = `
   try {
-    const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    var t = localStorage.getItem('bundl_theme') || 'system';
+    var dark = t === 'dark' || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
     document.documentElement.classList.toggle('dark', dark);
   } catch (e) {}
 `

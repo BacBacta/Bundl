@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus } from 'lucide-react'
+import { Plus, CalendarClock, ShieldCheck } from 'lucide-react'
 import { BottomNav } from '@/components/BottomNav'
 import { Header } from '@/components/Header'
 import { GoalRing } from '@/components/GoalRing'
@@ -9,6 +9,7 @@ import { RecipientRow } from '@/components/RecipientRow'
 import { SettleSheet } from '@/components/SettleSheet'
 import { ReminderBanner } from '@/components/ReminderBanner'
 import { DetectedPayments } from '@/components/DetectedPayments'
+import { Onboarding, hasOnboarded } from '@/components/Onboarding'
 import { SkeletonRow } from '@/components/Skeleton'
 import { getAccount, isMiniPay } from '@/lib/wallet'
 import { usd, round2 } from '@/lib/format'
@@ -29,8 +30,6 @@ import {
   setSettlementTokenKey,
 } from '@/lib/storage'
 
-const IS_TESTNET = process.env.NEXT_PUBLIC_NETWORK !== 'mainnet'
-
 export default function Home() {
   const [account, setAccount] = useState<string | null>(null)
   const [inMiniPay, setInMiniPay] = useState(false)
@@ -43,8 +42,10 @@ export default function Home() {
   const [selectedToken, setSelectedToken] = useState<StablecoinBalance | null>(null)
   const [tokenLoading, setTokenLoading] = useState(false)
   const [suggestions, setSuggestions] = useState<DetectedPayment[]>([])
+  const [showOnboarding, setShowOnboarding] = useState(false)
 
   useEffect(() => {
+    setShowOnboarding(!hasOnboarded())
     setInMiniPay(isMiniPay())
     setRecurring(getRecurring())
     setPotBalance(getPotBalance())
@@ -64,9 +65,11 @@ export default function Home() {
         })
         .finally(() => setTokenLoading(false))
 
-      // T8 — detect recurring payments from on-chain history
+      // T8 — detect recurring payments from real on-chain history only.
+      // Demo data is opt-in via ?demo=1 so users never see phantom entries.
+      const demo = new URLSearchParams(window.location.search).get('demo') === '1'
       detectRecurringPayments(addr as `0x${string}`).then((found) => {
-        setSuggestions(found.length > 0 ? found : IS_TESTNET ? MOCK_SUGGESTIONS : [])
+        setSuggestions(found.length > 0 ? found : demo ? MOCK_SUGGESTIONS : [])
       })
     })
   }, [])
@@ -125,12 +128,14 @@ export default function Home() {
       />
 
       {/* Goal hero */}
-      <div className="bg-gradient-to-br from-brand to-brand-dark rounded-card p-5 text-white mb-4 shadow-card">
-        <div className="flex items-center gap-5">
+      <div className="relative overflow-hidden bg-gradient-to-br from-brand-light via-brand to-brand-dark rounded-card p-5 text-white mb-4 shadow-card">
+        {/* decorative glow */}
+        <div className="absolute -top-16 -right-12 w-44 h-44 bg-white/10 rounded-full blur-2xl pointer-events-none" />
+        <div className="relative flex items-center gap-5">
           <GoalRing
             percent={potPercent}
             label={`${potPercent}%`}
-            sublabel={streak > 0 ? `${streak} day streak` : 'of goal'}
+            sublabel={streak > 0 ? `${streak}d streak` : 'of goal'}
           />
           <div className="min-w-0">
             <p className="text-caption opacity-75">Savings goal</p>
@@ -138,9 +143,16 @@ export default function Home() {
             {monthlyTarget > 0 && (
               <p className="text-caption opacity-70 mt-1">of ${usd(monthlyTarget)}</p>
             )}
-            <p className="text-micro opacity-60 mt-2">Funds stay in your wallet</p>
+            {monthlyTarget > 0 && (
+              <span className="inline-flex items-center gap-1 mt-2.5 bg-white/15 rounded-pill px-2.5 py-1 text-micro font-medium">
+                <CalendarClock size={11} /> {daysUntilSettlement}d to settlement
+              </span>
+            )}
           </div>
         </div>
+        <p className="relative flex items-center gap-1 text-micro opacity-60 mt-4">
+          <ShieldCheck size={11} /> Your funds stay in your wallet
+        </p>
       </div>
 
       {/* Empty state */}
@@ -251,6 +263,8 @@ export default function Home() {
       )}
 
       <BottomNav />
+
+      {showOnboarding && <Onboarding onDone={() => setShowOnboarding(false)} />}
     </main>
   )
 }
