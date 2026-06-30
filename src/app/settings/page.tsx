@@ -2,16 +2,24 @@
 
 import { useState, useRef } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
-  Download, Upload, Info, ShieldCheck, FileText, Lock, LifeBuoy, BarChart3, ChevronRight,
+  Download, Upload, Info, ShieldCheck, FileText, Lock, LifeBuoy, BarChart3, ChevronRight, Sparkles,
 } from 'lucide-react'
 import { exportBackup, importBackup } from '@/lib/storage'
 import { BottomNav } from '@/components/BottomNav'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import { resetOnboarding } from '@/components/Onboarding'
 
 export default function SettingsPage() {
+  const router = useRouter()
   const [importStatus, setImportStatus] = useState<'idle' | 'ok' | 'error'>('idle')
   const fileRef = useRef<HTMLInputElement>(null)
+
+  function replayIntro() {
+    resetOnboarding()
+    router.push('/?intro=1')
+  }
 
   function handleExport() {
     const json = exportBackup()
@@ -96,6 +104,13 @@ export default function SettingsPage() {
 
       {/* Links */}
       <div className="bg-surface-raised border border-line rounded-card shadow-card divide-y divide-line">
+        <button onClick={replayIntro} className="w-full text-left">
+          <div className="flex items-center gap-3 px-4 py-3.5 active:bg-surface-sunken">
+            <Sparkles size={18} className="text-content-muted" />
+            <span className="flex-1 text-body text-content">Replay intro</span>
+            <ChevronRight size={17} className="text-content-subtle" />
+          </div>
+        </button>
         <LinkRow href="https://t.me/bundlsupport" external Icon={LifeBuoy} label="Support" />
         <LinkRow href="/stats" Icon={BarChart3} label="Stats" />
         <LinkRow href="/terms" Icon={FileText} label="Terms of service" />

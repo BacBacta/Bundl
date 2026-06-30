@@ -8,7 +8,13 @@ const KEY = 'bundl_onboarded'
 
 export function hasOnboarded(): boolean {
   if (typeof window === 'undefined') return true
+  // ?intro=1 forces the intro to show again (no console needed on MiniPay).
+  if (new URLSearchParams(window.location.search).get('intro') === '1') return false
   return localStorage.getItem(KEY) === '1'
+}
+
+export function resetOnboarding() {
+  localStorage.removeItem(KEY)
 }
 
 interface Slide {
