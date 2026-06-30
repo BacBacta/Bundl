@@ -8,8 +8,12 @@ change needed.
 | File          | Slide | Scene                              |
 | ------------- | ----- | ---------------------------------- |
 | `people.json` | 1     | Contacts list (contact cards)      |
-| `habit.json`  | 2     | Streak flame (keep the habit)      |
-| `settle.json` | 3     | Money flying out (payment)         |
+| `habit.json`  | 2     | Insight / progress charts          |
+| `settle.json` | 3     | Success confirmation               |
+
+All three are from one design system (Cisco Momentum, 368×287) so the set is
+stylistically **cohesive** — same line weight, palette and motion language.
+Keep this consistency if you swap them.
 
 ## Licensing — action needed before public launch
 
