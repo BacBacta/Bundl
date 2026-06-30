@@ -1,19 +1,24 @@
-// Bespoke illustrations for the onboarding slides.
-// Hand-built SVG scenes (not stock icons) using the brand palette, with soft
-// depth and gradients so each slide feels premium and distinct.
+// Bespoke, animated illustrations for the onboarding slides.
+// Hand-built SVG scenes using the brand palette with sequenced entrances and
+// ambient motion (ring draw, value flow, flame flicker, hub ripple).
+// Animations are defined in globals.css and replay each time a slide mounts.
 
-const GRAD = (
+const DEFS = (
   <defs>
     <linearGradient id="bg-stage" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stopColor="#1D9E75" stopOpacity="0.16" />
-      <stop offset="100%" stopColor="#0F6E56" stopOpacity="0.04" />
+      <stop offset="0%" stopColor="#1D9E75" stopOpacity="0.18" />
+      <stop offset="100%" stopColor="#0F6E56" stopOpacity="0.03" />
     </linearGradient>
     <linearGradient id="g-green" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stopColor="#1D9E75" />
+      <stop offset="0%" stopColor="#23B083" />
       <stop offset="100%" stopColor="#0F6E56" />
     </linearGradient>
-    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="6" stdDeviation="10" floodColor="#0F6E56" floodOpacity="0.18" />
+    <linearGradient id="g-card" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stopColor="#FFFFFF" />
+      <stop offset="100%" stopColor="#F3F7F5" />
+    </linearGradient>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" floodColor="#0F6E56" floodOpacity="0.16" />
     </filter>
   </defs>
 )
@@ -21,120 +26,145 @@ const GRAD = (
 const AV = ['#0F6E56', '#2563EB', '#DB2777', '#EA580C']
 
 function Stage() {
-  return <rect x="8" y="8" width="224" height="184" rx="32" fill="url(#bg-stage)" />
+  return <rect x="6" y="6" width="228" height="188" rx="34" fill="url(#bg-stage)" />
 }
 
-// Slide 1 — a contact list materialising into one card.
+// Slide 1 — a contact list assembling, row by row.
 export function ArtPeople() {
-  const rows = [0, 1, 2]
   return (
     <svg viewBox="0 0 240 200" className="w-full h-full" fill="none">
-      {GRAD}
+      {DEFS}
       <Stage />
-      <g filter="url(#soft)">
-        <rect x="44" y="44" width="152" height="112" rx="20" fill="white" />
+      <g className="art-pop art-el" filter="url(#soft)">
+        <rect x="42" y="40" width="156" height="120" rx="22" fill="url(#g-card)" />
       </g>
-      {rows.map((i) => (
-        <g key={i} transform={`translate(60, ${62 + i * 32})`}>
-          <circle cx="12" cy="12" r="12" fill={AV[i]} />
-          <text x="12" y="16" textAnchor="middle" fontSize="11" fontWeight="700" fill="white">
+      {[0, 1, 2].map((i) => (
+        <g
+          key={i}
+          className="art-rise art-el"
+          style={{ animationDelay: `${250 + i * 160}ms` }}
+          transform={`translate(58, ${56 + i * 34})`}
+        >
+          <circle cx="13" cy="13" r="13" fill={AV[i]} />
+          <text x="13" y="17.5" textAnchor="middle" fontSize="12" fontWeight="700" fill="white">
             {['M', 'R', 'S'][i]}
           </text>
-          <rect x="34" y="6" width="64" height="7" rx="3.5" fill="#11181C" opacity="0.85" />
-          <rect x="34" y="18" width="40" height="6" rx="3" fill="#11181C" opacity="0.3" />
-          <rect x="118" y="9" width="26" height="9" rx="4.5" fill="#1D9E75" opacity="0.9" />
+          <rect x="36" y="6" width="66" height="8" rx="4" fill="#11181C" opacity="0.82" />
+          <rect x="36" y="19" width="42" height="6" rx="3" fill="#11181C" opacity="0.26" />
+          <rect x="122" y="9" width="28" height="10" rx="5" fill="#1D9E75" opacity="0.9" />
         </g>
       ))}
-      <g transform="translate(176, 128)">
-        <circle cx="0" cy="0" r="18" fill="url(#g-green)" />
-        <path d="M-7 0 H7 M0 -7 V7" stroke="white" strokeWidth="3" strokeLinecap="round" />
+      <g className="art-float art-el" style={{ animationDelay: '300ms' }}>
+        <g className="art-pop art-el" style={{ animationDelay: '820ms' }}>
+          <circle cx="184" cy="150" r="19" fill="url(#g-green)" filter="url(#soft)" />
+          <path d="M177 150 H191 M184 143 V157" stroke="white" strokeWidth="3.2" strokeLinecap="round" />
+        </g>
       </g>
     </svg>
   )
 }
 
-// Slide 2 — a progress ring with a streak flame and day dots.
+// Slide 2 — a goal ring drawing in, with a flickering streak flame.
 export function ArtHabit() {
-  const r = 46
+  const r = 48
   const c = 2 * Math.PI * r
   const pct = 0.72
   return (
     <svg viewBox="0 0 240 200" className="w-full h-full" fill="none">
-      {GRAD}
+      {DEFS}
       <Stage />
-      <g transform="translate(120, 92)">
-        <circle r={r} fill="white" filter="url(#soft)" />
-        <circle r={r} fill="none" stroke="#0F6E56" strokeOpacity="0.12" strokeWidth="10" />
+      <g transform="translate(120, 88)">
+        <circle className="art-pop art-el" r={r + 8} fill="url(#g-card)" filter="url(#soft)" />
+        <circle r={r} fill="none" stroke="#0F6E56" strokeOpacity="0.12" strokeWidth="11" />
         <circle
+          className="art-ring art-el"
           r={r}
           fill="none"
           stroke="url(#g-green)"
-          strokeWidth="10"
+          strokeWidth="11"
           strokeLinecap="round"
           strokeDasharray={c}
-          strokeDashoffset={c * (1 - pct)}
           transform="rotate(-90)"
+          style={{ ['--c' as string]: c, ['--target' as string]: c * (1 - pct), animationDelay: '350ms' }}
         />
-        {/* flame */}
-        <path
-          d="M0 -20 C10 -8 16 -4 16 6 a16 16 0 1 1 -32 0 c0 -8 5 -12 9 -18 c1 6 4 8 7 9 c-2 -6 -1 -12 -9 -16 z"
-          fill="url(#g-green)"
-          transform="translate(0,2) scale(0.9)"
+        <g className="art-flicker art-el">
+          <path
+            d="M0 -22 C11 -9 18 -4 18 7 a18 18 0 1 1 -36 0 c0 -9 6 -13 10 -20 c1 7 4 9 8 10 c-2 -7 -1 -13 -10 -17 z"
+            fill="url(#g-green)"
+            transform="scale(0.92)"
+          />
+          <path d="M0 4 c5 3 7 7 5 12 a8 8 0 0 1 -10 -2 c0 -5 3 -7 5 -10 z" fill="#FFFFFF" opacity="0.45" />
+        </g>
+      </g>
+      {[0, 1, 2, 3, 4].map((i) => (
+        <circle
+          key={i}
+          className="art-pop art-el"
+          style={{ animationDelay: `${700 + i * 110}ms` }}
+          cx={72 + i * 24}
+          cy="166"
+          r="6.5"
+          fill={i < 4 ? '#1D9E75' : '#0F6E56'}
+          opacity={i < 4 ? 1 : 0.2}
         />
-      </g>
-      {/* day dots */}
-      <g transform="translate(72, 164)">
-        {[0, 1, 2, 3, 4].map((i) => (
-          <circle key={i} cx={i * 24} cy="0" r="6" fill={i < 4 ? '#1D9E75' : '#0F6E56'} opacity={i < 4 ? 1 : 0.18} />
-        ))}
-      </g>
+      ))}
     </svg>
   )
 }
 
-// Slide 3 — one hub fanning out to many recipients (the disperse metaphor).
+// Slide 3 — one hub dispersing value to several recipients.
 export function ArtSettle() {
   const nodes = [
-    { x: 56, y: 48 },
-    { x: 184, y: 48 },
-    { x: 48, y: 150 },
-    { x: 192, y: 150 },
+    { x: 54, y: 50 },
+    { x: 186, y: 50 },
+    { x: 46, y: 152 },
+    { x: 194, y: 152 },
   ]
   const hub = { x: 120, y: 100 }
   return (
     <svg viewBox="0 0 240 200" className="w-full h-full" fill="none">
-      {GRAD}
+      {DEFS}
       <Stage />
       {nodes.map((n, i) => (
         <line
           key={`l${i}`}
+          className="art-flow"
           x1={hub.x}
           y1={hub.y}
           x2={n.x}
           y2={n.y}
-          stroke="#1D9E75"
-          strokeWidth="2.5"
-          strokeOpacity="0.45"
-          strokeDasharray="2 6"
+          stroke="url(#g-green)"
+          strokeWidth="3"
+          strokeOpacity="0.5"
+          strokeDasharray="3 9"
           strokeLinecap="round"
+          style={{ animationDelay: `${i * 200}ms` }}
         />
       ))}
       {nodes.map((n, i) => (
-        <g key={`n${i}`} transform={`translate(${n.x - 16}, ${n.y - 16})`}>
-          <circle cx="16" cy="16" r="16" fill="white" filter="url(#soft)" />
-          <circle cx="16" cy="16" r="13" fill={AV[i]} opacity="0.16" />
-          <circle cx="16" cy="16" r="6" fill={AV[i]} />
+        <g key={`n${i}`} transform={`translate(${n.x}, ${n.y})`}>
+          <g className="art-float art-el" style={{ animationDelay: `${i * 300}ms` }}>
+            <g className="art-pop art-el" style={{ animationDelay: `${500 + i * 140}ms` }}>
+              <circle r="17" fill="url(#g-card)" filter="url(#soft)" />
+              <circle r="13" fill={AV[i]} opacity="0.16" />
+              <circle r="6.5" fill={AV[i]} />
+            </g>
+          </g>
         </g>
       ))}
-      <g transform={`translate(${hub.x - 28}, ${hub.y - 28})`}>
-        <circle cx="28" cy="28" r="28" fill="url(#g-green)" filter="url(#soft)" />
-        <path
-          d="M19 28 h18 M30 21 l7 7 l-7 7"
-          stroke="white"
-          strokeWidth="3.4"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+      {/* hub with ripple */}
+      <g transform={`translate(${hub.x}, ${hub.y})`}>
+        <circle className="art-ripple art-el" r="28" fill="#1D9E75" />
+        <g className="art-pop art-el">
+          <circle r="29" fill="url(#g-green)" filter="url(#soft)" />
+          <path
+            d="M-9 0 h18 M2 -7 l7 7 l-7 7"
+            stroke="white"
+            strokeWidth="3.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </g>
       </g>
     </svg>
   )
