@@ -1,5 +1,7 @@
 // Client-side persistence via localStorage.
-// All monetary amounts are in stablecoin display units (e.g. 12.50 = $12.50).
+// Monetary amounts are in stablecoin display units (12.50 = $12.50).
+// "potBalance" is a commitment tracker only — funds stay in the user's wallet.
+// The on-chain balance is always read fresh before enabling Settle.
 
 export interface Recurring {
   id: string
@@ -166,4 +168,22 @@ export function addBundle(bundle: Bundle) {
   store.bundles = [...store.bundles, bundle]
   store.potBalance = 0
   save(store)
+}
+
+// --- Backup / Restore (guard against cache purge) ---
+
+export function exportBackup(): string {
+  return localStorage.getItem(KEY) ?? JSON.stringify(empty())
+}
+
+export function importBackup(json: string): boolean {
+  try {
+    const parsed = JSON.parse(json) as Store
+    // Sanity check: must have recurring array
+    if (!Array.isArray(parsed.recurring)) return false
+    save(parsed)
+    return true
+  } catch {
+    return false
+  }
 }

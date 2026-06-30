@@ -113,17 +113,18 @@ export default function Home() {
         </div>
       )}
 
-      {/* Pot card */}
+      {/* Savings goal card */}
       <div className="bg-[#0F6E56] rounded-2xl p-5 text-white mb-4">
         <div className="flex justify-between items-start mb-4">
           <div>
-            <p className="text-sm opacity-75 mb-1">Monthly pot</p>
+            <p className="text-sm opacity-75 mb-1">Savings goal</p>
             <p className="text-4xl font-bold">
               ${potBalance}
               {monthlyTarget > 0 && (
                 <span className="text-lg font-normal opacity-60"> / ${monthlyTarget}</span>
               )}
             </p>
+            <p className="text-xs opacity-50 mt-1">Commitment tracker — funds stay in your wallet</p>
           </div>
           <div className="text-right">
             <span className="text-3xl select-none">🪴</span>
@@ -141,7 +142,7 @@ export default function Home() {
               />
             </div>
             <div className="flex justify-between items-center">
-              <p className="text-xs opacity-60">{potPercent}% of monthly target</p>
+              <p className="text-xs opacity-60">{potPercent}% of goal</p>
               {preferredToken && (
                 <p className="text-xs opacity-60">
                   Wallet: ${preferredToken.humanBalance.toFixed(2)} {preferredToken.symbol}
@@ -152,19 +153,19 @@ export default function Home() {
         )}
       </div>
 
-      {/* Add to pot */}
+      {/* Mark daily commitment */}
       <button
         onClick={handleAddToPot}
         disabled={todayDone || potFull || monthlyTarget === 0}
         className="w-full py-4 rounded-xl font-semibold text-white bg-[#0F6E56] disabled:opacity-40 active:opacity-80 transition-opacity mb-3"
       >
         {todayDone
-          ? 'Added today ✓'
+          ? 'Committed today ✓'
           : potFull
-          ? 'Pot is full'
+          ? 'Goal reached'
           : monthlyTarget === 0
           ? 'Add recurring payments first'
-          : `Add $${dailyAmount} to pot today`}
+          : `Mark $${dailyAmount} committed today`}
       </button>
 
       {/* Next settlement */}
@@ -185,32 +186,36 @@ export default function Home() {
           </div>
           <p className="text-xs text-gray-400 mb-3">Due {dueDate}</p>
 
-          {potFull ? (
-            preferredToken ? (
-              <button
-                onClick={() => setSettling(true)}
-                className="w-full py-3 rounded-xl font-semibold text-white bg-[#0F6E56] active:opacity-80"
-              >
-                Settle in one tap · {preferredToken.symbol}
-              </button>
-            ) : tokenLoading ? (
-              <button disabled className="w-full py-3 rounded-xl font-semibold text-white bg-[#0F6E56] opacity-40">
-                Checking balance…
-              </button>
-            ) : (
+          {tokenLoading ? (
+            <button disabled className="w-full py-3 rounded-xl font-semibold text-white bg-[#0F6E56] opacity-40">
+              Checking wallet balance…
+            </button>
+          ) : preferredToken && preferredToken.humanBalance >= monthlyTarget ? (
+            <button
+              onClick={() => setSettling(true)}
+              className="w-full py-3 rounded-xl font-semibold text-white bg-[#0F6E56] active:opacity-80"
+            >
+              Settle in one tap · {preferredToken.symbol}
+            </button>
+          ) : preferredToken && preferredToken.humanBalance > 0 ? (
+            // Has some balance but not enough
+            <div>
+              <div className="bg-amber-50 text-amber-700 text-xs rounded-xl p-3 mb-2">
+                Wallet: ${preferredToken.humanBalance.toFixed(2)} {preferredToken.symbol} — need ${monthlyTarget}. Top up to settle.
+              </div>
               <button
                 onClick={redirectToDeposit}
                 className="w-full py-3 rounded-xl font-semibold text-white bg-amber-500 active:opacity-80"
               >
-                Deposit to settle
+                Add funds to settle
               </button>
-            )
+            </div>
           ) : (
             <button
-              disabled
-              className="w-full py-3 rounded-xl font-semibold text-white bg-[#0F6E56] opacity-40 cursor-not-allowed"
+              onClick={redirectToDeposit}
+              className="w-full py-3 rounded-xl font-semibold text-white bg-amber-500 active:opacity-80"
             >
-              Add ${remaining} more to unlock
+              Deposit {preferredToken ? preferredToken.symbol : 'stablecoins'} to settle
             </button>
           )}
         </div>
