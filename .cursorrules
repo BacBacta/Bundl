@@ -1,0 +1,61 @@
+# Bundl — agent rules (MiniPay Mini App)
+
+You are building Bundl: a MiniPay Mini App that bundles a user's recurring payments into ONE
+transaction confirmed with a single tap, funded by a daily provisioning pot. Read AGENT_BRIEF_EN.md
+and Bundl_MVP_Spec_EN.docx for full context before generating code.
+
+## Hard rules — MiniPay (never violate)
+
+1. WALLET CONNECTION IS IMPLICIT. Detect `window.ethereum.isMiniPay`. Never render a
+   "Connect Wallet" button when running inside MiniPay. Get the account via
+   `walletClient.getAddresses()`.
+2. LEGACY TRANSACTIONS ONLY. Never set EIP-1559 fields (maxFeePerGas, maxPriorityFeePerGas).
+3. NO MESSAGE SIGNING. Never use `permit` (EIP-2612), `signMessage`, `signTypedData`, or any
+   off-chain signature flow — MiniPay does not support it. ERC20 approval MUST be a plain
+   `approve` transaction.
+4. NO AUTO-DEBIT. The user re-confirms each cycle. The product value is bundling many payments
+   into ONE confirmed transaction, not recurring pull payments.
+5. GAS IN STABLECOIN IS OPTIONAL. Support `feeCurrency` (Celo fee abstraction) but make it a
+   toggle; default to native CELO gas so tests don't depend on a registered fee currency.
+6. NON-CUSTODIAL. The multisend contract must move funds payer→recipient directly
+   (`transferFrom`); it must never hold user funds.
+
+## Chain config
+
+- Use Celo. viem v2. Mainnet chainId 42220; testnet = Celo Sepolia, chainId 11142220.
+- Default dev/test on Celo Sepolia.
+- USDC (Celo Sepolia): 0x01C5C0122039549AD1493B8220cABEdD739BC44E (decimals 6).
+- MockUSD (this repo) has decimals 18 — read decimals dynamically, never hardcode.
+
+## Smart contract rules
+
+- The multisend is `Disperse.sol` (already in repo): atomic (revert whole tx on any failure),
+  non-custodial, safe transferFrom for non-standard ERC20 (USDT).
+- Client flow: `approve(disperse, largeAmount)` once → `disperseToken(token, recipients[], amounts[])`
+  per bundle. First bundle = 2 txs (approve + execute), later bundles = 1 tx.
+- For production add OpenZeppelin SafeERC20 + ReentrancyGuard + Pausable + a max-N cap. Do not
+  ship the raw MVP contract to mainnet without an audit.
+
+## Frontend conventions
+
+- Next.js + TypeScript. Mobile-first (target ~360px). Green accent #0F6E56.
+- Use viem (or wagmi) — no ethers. Always `parseUnits` with the token's real decimals.
+- Round every displayed number. Money formatted consistently.
+- UI copy: sentence case, no exclamation marks, plain language (English).
+- Reference `prototype_app.html` for the three screens (Home / Recurring / History) and the
+  settlement sheet.
+
+## Workflow
+
+- Start with M0 (the multisend spike) before building UI. Deploy Disperse + MockUSD to Sepolia,
+  prove approve → disperseToken works in the MiniPay webview, measure gas per N (2,5,10,20).
+- Then M1→M5 per the milestone table in the spec.
+- Test inside MiniPay via Developer Settings → Load Test Page (HTTPS). Never assume a desktop
+  browser wallet.
+
+## Don't
+
+- Don't add a Connect Wallet button, WalletConnect, or MetaMask connectors to the user-facing app.
+- Don't use permit/signature-based approvals.
+- Don't hold funds in any contract.
+- Don't hardcode token decimals or addresses across files — centralize them in one config module.

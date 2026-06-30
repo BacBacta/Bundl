@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --brand: #0F6E56;
+}
+
+html, body {
+  max-width: 390px;
+  margin: 0 auto;
+  background: #fff;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Prevent pull-to-refresh flash on mobile */
+body {
+  overscroll-behavior-y: contain;
+}
