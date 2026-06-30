@@ -15,10 +15,16 @@
  */
 
 import { useState } from 'react'
+import { notFound } from 'next/navigation'
 import { parseUnits } from 'viem'
 import { getTokenDecimals, ensureApproval, disperseToken } from '@/lib/disperse'
 import { TOKENS, isDeployed } from '@/lib/tokens'
 import { getAccount, isMiniPay } from '@/lib/wallet'
+
+// Dev-only developer harness — excluded from production builds. Set
+// NEXT_PUBLIC_ENABLE_SPIKE=1 to force-enable (e.g. for testnet QA).
+const SPIKE_ENABLED =
+  process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_ENABLE_SPIKE === '1'
 
 // Auto-test: deployer address used as all recipients to verify the contract works
 const RECIPIENTS: `0x${string}`[] = [
@@ -38,6 +44,8 @@ const AMOUNTS_BY_N: Record<number, number[]> = {
 type LogEntry = { ts: string; msg: string; ok: boolean }
 
 export default function SpikePage() {
+  if (!SPIKE_ENABLED) notFound()
+
   const [log, setLog] = useState<LogEntry[]>([])
   const [busy, setBusy] = useState(false)
   const [n, setN] = useState(2)
