@@ -5,11 +5,11 @@ loaded at runtime; if it's missing the app falls back to the built-in SVG scene
 (`src/components/OnboardingArt.tsx`). Swap any file to restyle a slide — no code
 change needed.
 
-| File          | Slide | Scene                         |
-| ------------- | ----- | ----------------------------- |
-| `people.json` | 1     | People / contacts             |
-| `habit.json`  | 2     | Savings (piggy bank + coin)   |
-| `settle.json` | 3     | Money flying out (payment)    |
+| File          | Slide | Scene                              |
+| ------------- | ----- | ---------------------------------- |
+| `people.json` | 1     | Contacts list (contact cards)      |
+| `habit.json`  | 2     | Streak flame (keep the habit)      |
+| `settle.json` | 3     | Money flying out (payment)         |
 
 ## Licensing — action needed before public launch
 
