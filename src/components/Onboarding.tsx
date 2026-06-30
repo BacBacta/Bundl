@@ -3,15 +3,13 @@
 import { useState } from 'react'
 import { ArrowRight } from 'lucide-react'
 import { motion, AnimatePresence, MotionConfig, type Variants } from 'motion/react'
-import { ArtPeople, ArtHabit, ArtSettle } from './OnboardingArt'
-import { LottieScene } from './LottieScene'
+import { ProductPeople, ProductHabit, ProductSettle } from './ProductScenes'
 import { MeshGradient } from './MeshGradient'
 import { Grain } from './Grain'
 import { markOnboarded } from '@/lib/onboarding'
 
 interface Slide {
-  Art: () => JSX.Element
-  lottie: string // /lottie/<name>.json — used if present, else Art fallback
+  Scene: () => JSX.Element
   eyebrow: string
   title: string
   body: string
@@ -19,22 +17,19 @@ interface Slide {
 
 const SLIDES: Slide[] = [
   {
-    Art: ArtPeople,
-    lottie: '/lottie/people.json',
+    Scene: ProductPeople,
     eyebrow: 'Step 1',
     title: 'All your people, one list',
     body: 'Add the people you pay regularly — rent, family, suppliers. Bundl can even detect them from your wallet.',
   },
   {
-    Art: ArtHabit,
-    lottie: '/lottie/habit.json',
+    Scene: ProductHabit,
     eyebrow: 'Step 2',
     title: 'Build the habit',
     body: 'Commit a little each day toward your monthly total and keep your streak alive. Your money stays in your wallet.',
   },
   {
-    Art: ArtSettle,
-    lottie: '/lottie/settle.json',
+    Scene: ProductSettle,
     eyebrow: 'Step 3',
     title: 'Settle in one tap',
     body: 'Pay everyone at once in a single transaction — confirmed with one tap, with a native MiniPay receipt.',
@@ -98,7 +93,7 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
           <motion.div
             key={index}
             custom={dir}
-            className="w-full max-w-[320px] aspect-[6/5] rounded-[28px] bg-surface-raised/55 backdrop-blur-xl border border-white/15 shadow-sheet p-3"
+            className="w-full max-w-[300px] aspect-[5/6]"
             initial={{ opacity: 0, x: dir * 80, scale: 0.92 }}
             animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={{ opacity: 0, x: dir * -80, scale: 0.92 }}
@@ -111,7 +106,7 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
               else if (info.offset.x > 60) go(index - 1)
             }}
           >
-            <LottieScene src={slide.lottie} active={true} fallback={<slide.Art />} />
+            <slide.Scene />
           </motion.div>
         </AnimatePresence>
       </div>
