@@ -1,10 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Receipt, ChevronDown, ChevronUp, ChevronRight, ExternalLink, CheckCircle2 } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { Receipt, ChevronDown, ChevronUp, ChevronRight, ExternalLink, CheckCircle2, RefreshCw, Link2 } from 'lucide-react'
 import { BottomNav } from '@/components/BottomNav'
 import { RecipientRow } from '@/components/RecipientRow'
+import { SkeletonRow } from '@/components/Skeleton'
 import { type Bundle, getBundles } from '@/lib/storage'
+import { fetchOnchainBundles, mergeBundles } from '@/lib/onchainHistory'
+import { getAccount } from '@/lib/wallet'
 import { DEEPLINKS } from '@/lib/tokens'
 import { usd } from '@/lib/format'
 import { ACTIVE_CHAIN } from '@/lib/chains'
@@ -13,16 +16,55 @@ const EXPLORER = ACTIVE_CHAIN.blockExplorers?.default.url ?? 'https://celo-sepol
 
 export default function History() {
   const [bundles, setBundles] = useState<Bundle[]>([])
+  const [syncing, setSyncing] = useState(false)
+  const [synced, setSynced] = useState(false)
+
+  const sync = useCallback(async () => {
+    // Local cache shows instantly; the chain is the source of truth.
+    const local = getBundles()
+    setBundles(local)
+    const addr = await getAccount()
+    if (!addr) return
+    setSyncing(true)
+    try {
+      const chain = await fetchOnchainBundles(addr as `0x${string}`)
+      setBundles(mergeBundles(local, chain))
+      setSynced(true)
+    } finally {
+      setSyncing(false)
+    }
+  }, [])
 
   useEffect(() => {
-    setBundles(getBundles())
-  }, [])
+    sync()
+  }, [sync])
 
   return (
     <main className="flex flex-col min-h-screen pb-24 px-4 pt-6">
-      <h1 className="text-title text-content mb-5">History</h1>
+      <div className="flex items-center justify-between mb-5">
+        <h1 className="text-title text-content">History</h1>
+        <button
+          onClick={sync}
+          disabled={syncing}
+          className="flex items-center gap-1.5 text-caption text-content-subtle active:opacity-60 disabled:opacity-40"
+        >
+          <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
+          {syncing ? 'Syncing' : 'Refresh'}
+        </button>
+      </div>
 
-      {bundles.length === 0 ? (
+      {synced && bundles.length > 0 && (
+        <p className="flex items-center gap-1.5 text-micro text-content-subtle mb-3">
+          <Link2 size={12} /> Synced from the blockchain — restored even after a cache clear.
+        </p>
+      )}
+
+      {syncing && bundles.length === 0 ? (
+        <div className="space-y-3">
+          <SkeletonRow />
+          <SkeletonRow />
+        </div>
+      ) : bundles.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center text-center py-20">
           <div className="w-14 h-14 rounded-full bg-surface-sunken flex items-center justify-center mb-4">
             <Receipt size={24} className="text-content-subtle" />
