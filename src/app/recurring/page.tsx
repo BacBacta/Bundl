@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import { isAddress } from 'viem'
-import { Plus, Trash2, Contact, Repeat } from 'lucide-react'
+import { Plus, Trash2, Contact, Repeat, Share2, Check } from 'lucide-react'
 import { BottomNav } from '@/components/BottomNav'
 import { RecipientRow } from '@/components/RecipientRow'
 import { usd } from '@/lib/format'
+import { buildShareUrl } from '@/lib/shareBundle'
 import {
   type Recurring,
   type Frequency,
@@ -26,6 +27,24 @@ export default function RecurringPage() {
   const [editing, setEditing] = useState<Recurring | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [errors, setErrors] = useState<Partial<typeof EMPTY_FORM>>({})
+  const [shared, setShared] = useState(false)
+
+  async function handleShare() {
+    if (items.length === 0) return
+    const url = buildShareUrl(items)
+    const text = `I set up a payment bundle on Bundl — open it to pay everyone in one tap:`
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: 'Bundl payment bundle', text, url })
+      } else {
+        await navigator.clipboard.writeText(url)
+        setShared(true)
+        setTimeout(() => setShared(false), 2000)
+      }
+    } catch {
+      /* user cancelled share — ignore */
+    }
+  }
 
   useEffect(() => {
     setItems(getRecurring())
@@ -103,13 +122,24 @@ export default function RecurringPage() {
     <main className="flex flex-col min-h-screen pb-24 px-4 pt-6">
       <div className="flex items-center justify-between mb-5">
         <h1 className="text-title text-content">Recurring</h1>
-        <button
-          onClick={openAdd}
-          className="w-10 h-10 flex items-center justify-center rounded-full bg-brand text-white shadow-ring active:scale-90 transition-transform"
-          aria-label="Add payment"
-        >
-          <Plus size={20} />
-        </button>
+        <div className="flex items-center gap-2">
+          {items.length > 0 && (
+            <button
+              onClick={handleShare}
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-surface-sunken text-content-muted active:scale-90 transition-transform"
+              aria-label="Share bundle"
+            >
+              {shared ? <Check size={18} className="text-success" /> : <Share2 size={18} />}
+            </button>
+          )}
+          <button
+            onClick={openAdd}
+            className="w-10 h-10 flex items-center justify-center rounded-full bg-brand text-white shadow-ring active:scale-90 transition-transform"
+            aria-label="Add payment"
+          >
+            <Plus size={20} />
+          </button>
+        </div>
       </div>
 
       {items.length === 0 ? (
