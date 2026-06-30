@@ -105,7 +105,7 @@ export default function SpikePage() {
             onClick={() => setN(v)}
             className={`flex-1 py-2.5 rounded-xl text-sm font-medium border transition-colors ${
               n === v
-                ? 'bg-[#0F6E56] text-white border-[#0F6E56]'
+                ? 'bg-brand text-white border-brand'
                 : 'border-gray-200 text-gray-600'
             }`}
           >
@@ -117,7 +117,7 @@ export default function SpikePage() {
       <button
         onClick={runSpike}
         disabled={busy}
-        className="w-full py-4 rounded-xl font-semibold text-white bg-[#0F6E56] disabled:opacity-40 active:opacity-80 transition-opacity mb-5"
+        className="w-full py-4 rounded-xl font-semibold text-white bg-brand disabled:opacity-40 active:opacity-80 transition-opacity mb-5"
       >
         {busy ? 'Running…' : `Run spike (${n} recipients)`}
       </button>

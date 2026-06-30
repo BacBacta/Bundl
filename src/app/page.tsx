@@ -1,24 +1,35 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { Plus } from 'lucide-react'
 import { BottomNav } from '@/components/BottomNav'
-import { AppFooter } from '@/components/AppFooter'
+import { Header } from '@/components/Header'
+import { GoalRing } from '@/components/GoalRing'
+import { RecipientRow } from '@/components/RecipientRow'
 import { SettleSheet } from '@/components/SettleSheet'
 import { ReminderBanner } from '@/components/ReminderBanner'
+import { DetectedPayments } from '@/components/DetectedPayments'
+import { SkeletonRow } from '@/components/Skeleton'
 import { getAccount, isMiniPay } from '@/lib/wallet'
 import { usd, round2 } from '@/lib/format'
 import { getAllStablecoinBalances, redirectToDeposit, type StablecoinBalance } from '@/lib/stablecoin'
-import { getSettlementTokenKey, setSettlementTokenKey } from '@/lib/storage'
+import { detectRecurringPayments, MOCK_SUGGESTIONS, type DetectedPayment } from '@/lib/activity'
+import { cacheName } from '@/lib/socialconnect'
 import {
   type Recurring,
   type Bundle,
   getRecurring,
+  addRecurring,
   getPotBalance,
   getStreak,
   addDeposit,
   depositedToday,
   addBundle,
+  getSettlementTokenKey,
+  setSettlementTokenKey,
 } from '@/lib/storage'
+
+const IS_TESTNET = process.env.NEXT_PUBLIC_NETWORK !== 'mainnet'
 
 export default function Home() {
   const [account, setAccount] = useState<string | null>(null)
@@ -31,6 +42,7 @@ export default function Home() {
   const [allTokens, setAllTokens] = useState<StablecoinBalance[]>([])
   const [selectedToken, setSelectedToken] = useState<StablecoinBalance | null>(null)
   const [tokenLoading, setTokenLoading] = useState(false)
+  const [suggestions, setSuggestions] = useState<DetectedPayment[]>([])
 
   useEffect(() => {
     setInMiniPay(isMiniPay())
@@ -41,18 +53,21 @@ export default function Home() {
 
     getAccount().then((addr) => {
       setAccount(addr)
-      if (addr) {
-        setTokenLoading(true)
-        getAllStablecoinBalances(addr as `0x${string}`)
-          .then((balances) => {
-            setAllTokens(balances)
-            // Restore previously chosen token, else pick highest balance
-            const savedKey = getSettlementTokenKey()
-            const saved = balances.find((t) => t.key === savedKey)
-            setSelectedToken(saved ?? balances[0] ?? null)
-          })
-          .finally(() => setTokenLoading(false))
-      }
+      if (!addr) return
+
+      setTokenLoading(true)
+      getAllStablecoinBalances(addr as `0x${string}`)
+        .then((balances) => {
+          setAllTokens(balances)
+          const savedKey = getSettlementTokenKey()
+          setSelectedToken(balances.find((t) => t.key === savedKey) ?? balances[0] ?? null)
+        })
+        .finally(() => setTokenLoading(false))
+
+      // T8 — detect recurring payments from on-chain history
+      detectRecurringPayments(addr as `0x${string}`).then((found) => {
+        setSuggestions(found.length > 0 ? found : IS_TESTNET ? MOCK_SUGGESTIONS : [])
+      })
     })
   }, [])
 
@@ -60,7 +75,6 @@ export default function Home() {
   const dailyAmount = monthlyTarget > 0 ? Math.max(0.01, round2(monthlyTarget / 30)) : 5
   const potPercent = monthlyTarget > 0 ? Math.min(100, Math.round((potBalance / monthlyTarget) * 100)) : 0
   const potFull = monthlyTarget > 0 && potBalance >= monthlyTarget
-  const remaining = Math.max(0, round2(monthlyTarget - potBalance))
 
   function handleAddToPot() {
     const { balance, streak: newStreak } = addDeposit(dailyAmount)
@@ -75,6 +89,12 @@ export default function Home() {
     setSettling(false)
   }
 
+  function handleAddDetected(s: DetectedPayment) {
+    cacheName(s.address, s.name)
+    const item = addRecurring({ name: s.name, address: s.address, amount: s.suggestedAmount })
+    setRecurring((prev) => [...prev, item])
+  }
+
   const { dueDate, daysUntilSettlement } = (() => {
     const now = new Date()
     const due = new Date(now.getFullYear(), now.getMonth() + 1, 1)
@@ -86,24 +106,9 @@ export default function Home() {
   })()
 
   return (
-    <main className="flex flex-col min-h-screen pb-20 px-4 pt-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Bundl</h1>
-        {account ? (
-          <span className="text-xs text-gray-400 font-mono bg-gray-100 px-2 py-1 rounded-lg">
-            {account.slice(0, 6)}…{account.slice(-4)}
-          </span>
-        ) : (
-          !inMiniPay && (
-            <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded-lg">
-              Not in MiniPay
-            </span>
-          )
-        )}
-      </div>
+    <main className="flex flex-col min-h-screen pb-24 px-4 pt-4">
+      <Header account={account} inMiniPay={inMiniPay} />
 
-      {/* Reminder banner */}
       <ReminderBanner
         potBalance={potBalance}
         monthlyTarget={monthlyTarget}
@@ -112,92 +117,79 @@ export default function Home() {
         daysUntilSettlement={daysUntilSettlement}
       />
 
-      {/* Empty state */}
-      {recurring.length === 0 && (
-        <div className="border border-dashed border-gray-200 rounded-2xl p-5 mb-4 text-center text-gray-400">
-          <p className="text-sm">No recurring payments set up yet.</p>
-          <a href="/recurring" className="text-sm text-[#0F6E56] font-medium mt-1 block">
-            Add your first payment →
-          </a>
-        </div>
-      )}
+      {/* T8 — detected payments */}
+      <DetectedPayments
+        suggestions={suggestions}
+        existingAddresses={recurring.map((r) => r.address)}
+        onAdd={handleAddDetected}
+      />
 
-      {/* Savings goal card */}
-      <div className="bg-[#0F6E56] rounded-2xl p-5 text-white mb-4">
-        <div className="flex justify-between items-start mb-4">
-          <div>
-            <p className="text-sm opacity-75 mb-1">Savings goal</p>
-            <p className="text-4xl font-bold">
-              ${usd(potBalance)}
-              {monthlyTarget > 0 && (
-                <span className="text-lg font-normal opacity-60"> / ${usd(monthlyTarget)}</span>
-              )}
-            </p>
-            <p className="text-xs opacity-50 mt-1">Commitment tracker — funds stay in your wallet</p>
-          </div>
-          <div className="text-right">
-            <span className="text-3xl select-none">🪴</span>
-            {streak > 0 && (
-              <p className="text-xs mt-1 opacity-75">🔥 {streak} day{streak > 1 ? 's' : ''}</p>
+      {/* Goal hero */}
+      <div className="bg-gradient-to-br from-brand to-brand-dark rounded-card p-5 text-white mb-4 shadow-card">
+        <div className="flex items-center gap-5">
+          <GoalRing
+            percent={potPercent}
+            label={`${potPercent}%`}
+            sublabel={streak > 0 ? `${streak} day streak` : 'of goal'}
+          />
+          <div className="min-w-0">
+            <p className="text-caption opacity-75">Savings goal</p>
+            <p className="text-display leading-none mt-0.5">${usd(potBalance)}</p>
+            {monthlyTarget > 0 && (
+              <p className="text-caption opacity-70 mt-1">of ${usd(monthlyTarget)}</p>
             )}
+            <p className="text-micro opacity-60 mt-2">Funds stay in your wallet</p>
           </div>
         </div>
-        {monthlyTarget > 0 && (
-          <>
-            <div className="h-2 bg-white/20 rounded-full overflow-hidden mb-1">
-              <div
-                className="h-full bg-white rounded-full transition-all duration-700"
-                style={{ width: `${potPercent}%` }}
-              />
-            </div>
-            <div className="flex justify-between items-center">
-              <p className="text-xs opacity-60">{potPercent}% of goal</p>
-              {selectedToken && (
-                <p className="text-xs opacity-60">
-                  Wallet: ${usd(selectedToken.humanBalance)} {selectedToken.symbol}
-                </p>
-              )}
-            </div>
-          </>
-        )}
       </div>
 
-      {/* Mark daily commitment */}
-      <button
-        onClick={handleAddToPot}
-        disabled={todayDone || potFull || monthlyTarget === 0}
-        className="w-full py-4 rounded-xl font-semibold text-white bg-[#0F6E56] disabled:opacity-40 active:opacity-80 transition-opacity mb-3"
-      >
-        {todayDone
-          ? 'Committed today ✓'
-          : potFull
-          ? 'Goal reached'
-          : monthlyTarget === 0
-          ? 'Add recurring payments first'
-          : `Mark $${usd(dailyAmount)} committed today`}
-      </button>
+      {/* Empty state */}
+      {recurring.length === 0 && (
+        <a
+          href="/recurring"
+          className="flex items-center justify-center gap-2 border border-dashed border-line rounded-card p-5 mb-4 text-brand font-medium active:opacity-70"
+        >
+          <Plus size={18} /> Add your first recurring payment
+        </a>
+      )}
+
+      {/* Commit button */}
+      {monthlyTarget > 0 && (
+        <button
+          onClick={handleAddToPot}
+          disabled={todayDone || potFull}
+          className="w-full py-4 rounded-card font-semibold text-white bg-brand shadow-ring disabled:opacity-40 disabled:shadow-none active:scale-[0.99] transition-transform mb-4"
+        >
+          {todayDone
+            ? 'Committed today'
+            : potFull
+            ? 'Goal reached'
+            : `Commit $${usd(dailyAmount)} today`}
+        </button>
+      )}
 
       {/* Next settlement */}
       {recurring.length > 0 && (
-        <div className="border border-gray-200 rounded-2xl p-4 mb-4">
-          <p className="text-xs text-gray-400 uppercase tracking-wide mb-3">Next settlement</p>
+        <div className="bg-surface-raised border border-line rounded-card shadow-card p-4 mb-4">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-micro text-content-subtle uppercase tracking-wide">Next settlement</p>
+            <p className="text-micro text-content-subtle">Due {dueDate}</p>
+          </div>
 
-          {recurring.map((r) => (
-            <div key={r.id} className="flex justify-between py-1 text-sm">
-              <span className="text-gray-700">{r.name}</span>
-              <span className="font-medium">${usd(r.amount)}</span>
-            </div>
-          ))}
+          <div className="divide-y divide-line mb-3">
+            {recurring.map((r) => (
+              <RecipientRow key={r.id} name={r.name} address={r.address} amount={r.amount} cadence="monthly" />
+            ))}
+          </div>
 
-          <div className="border-t border-gray-100 mt-2 pt-2 flex justify-between text-sm font-semibold mb-1">
+          <div className="flex justify-between text-heading text-content border-t border-line pt-3 mb-3">
             <span>Total</span>
             <span>${usd(monthlyTarget)}</span>
           </div>
-          <p className="text-xs text-gray-400 mb-3">Due {dueDate}</p>
 
-          {/* Token picker — explicit selection, persisted */}
+          {/* Token picker */}
           {!tokenLoading && allTokens.length > 1 && (
-            <div className="flex gap-2 mb-3 flex-wrap">
+            <div className="flex gap-2 mb-3 overflow-x-auto no-scrollbar">
               {allTokens.map((t) => (
                 <button
                   key={t.key}
@@ -205,10 +197,10 @@ export default function Home() {
                     setSelectedToken(t)
                     setSettlementTokenKey(t.key)
                   }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors ${
+                  className={`px-3 py-1.5 rounded-pill text-caption font-semibold border whitespace-nowrap transition-colors ${
                     selectedToken?.key === t.key
-                      ? 'bg-[#0F6E56] text-white border-[#0F6E56]'
-                      : 'border-gray-200 text-gray-600'
+                      ? 'bg-brand text-white border-brand'
+                      : 'border-line text-content-muted'
                   }`}
                 >
                   {t.symbol} ${usd(t.humanBalance)}
@@ -218,25 +210,22 @@ export default function Home() {
           )}
 
           {tokenLoading ? (
-            <button disabled className="w-full py-3 rounded-xl font-semibold text-white bg-[#0F6E56] opacity-40">
-              Checking wallet balance…
-            </button>
+            <div className="py-1"><SkeletonRow /></div>
           ) : selectedToken && selectedToken.humanBalance >= monthlyTarget ? (
             <button
               onClick={() => setSettling(true)}
-              className="w-full py-3 rounded-xl font-semibold text-white bg-[#0F6E56] active:opacity-80"
+              className="w-full py-3.5 rounded-card font-semibold text-white bg-brand shadow-ring active:scale-[0.99] transition-transform"
             >
               Settle in one tap · {selectedToken.symbol}
             </button>
           ) : selectedToken && selectedToken.humanBalance > 0 ? (
-            // Has some balance but not enough
             <div>
-              <div className="bg-amber-50 text-amber-700 text-xs rounded-xl p-3 mb-2">
-                Wallet: ${usd(selectedToken.humanBalance)} {selectedToken.symbol} — need ${usd(monthlyTarget)}. Top up to settle.
+              <div className="bg-warning/10 text-warning text-caption rounded-card p-3 mb-2">
+                Wallet: ${usd(selectedToken.humanBalance)} {selectedToken.symbol} — need ${usd(monthlyTarget)}.
               </div>
               <button
                 onClick={redirectToDeposit}
-                className="w-full py-3 rounded-xl font-semibold text-white bg-amber-500 active:opacity-80"
+                className="w-full py-3.5 rounded-card font-semibold text-white bg-warning active:scale-[0.99] transition-transform"
               >
                 Add funds to settle
               </button>
@@ -244,7 +233,7 @@ export default function Home() {
           ) : (
             <button
               onClick={redirectToDeposit}
-              className="w-full py-3 rounded-xl font-semibold text-white bg-amber-500 active:opacity-80"
+              className="w-full py-3.5 rounded-card font-semibold text-white bg-warning active:scale-[0.99] transition-transform"
             >
               Deposit {selectedToken ? selectedToken.symbol : 'stablecoins'} to settle
             </button>
@@ -261,7 +250,6 @@ export default function Home() {
         />
       )}
 
-      <AppFooter />
       <BottomNav />
     </main>
   )

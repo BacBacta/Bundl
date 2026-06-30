@@ -2,18 +2,53 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── Design tokens ─────────────────────────────────────────────
+   RGB triplets so Tailwind's <alpha-value> works. */
 :root {
-  --brand: #0F6E56;
+  --surface: 255 255 255;        /* page background */
+  --surface-raised: 255 255 255; /* cards */
+  --surface-sunken: 244 246 245; /* inset / track */
+  --text: 17 24 28;
+  --text-muted: 90 100 105;
+  --text-subtle: 140 150 155;
+  --border: 230 233 232;
+}
+
+.dark {
+  --surface: 12 15 17;
+  --surface-raised: 22 27 30;
+  --surface-sunken: 30 36 40;
+  --text: 233 237 238;
+  --text-muted: 158 168 172;
+  --text-subtle: 110 120 125;
+  --border: 38 45 49;
 }
 
 html, body {
-  max-width: 390px;
+  max-width: 420px;
   margin: 0 auto;
-  background: #fff;
+  background: rgb(var(--surface));
+  color: rgb(var(--text));
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Prevent pull-to-refresh flash on mobile */
 body {
   overscroll-behavior-y: contain;
+  padding-top: env(safe-area-inset-top);
 }
+
+/* Skeleton shimmer */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgb(var(--surface-sunken)) 25%,
+    rgb(var(--border)) 37%,
+    rgb(var(--surface-sunken)) 63%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+/* Hide scrollbars on horizontal token rows */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

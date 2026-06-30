@@ -1,8 +1,11 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import Link from 'next/link'
+import {
+  Download, Upload, Info, ShieldCheck, FileText, Lock, LifeBuoy, BarChart3, ChevronRight,
+} from 'lucide-react'
 import { exportBackup, importBackup } from '@/lib/storage'
-import { AppFooter } from '@/components/AppFooter'
 import { BottomNav } from '@/components/BottomNav'
 
 export default function SettingsPage() {
@@ -33,74 +36,98 @@ export default function SettingsPage() {
   }
 
   return (
-    <main className="flex flex-col min-h-screen pb-20 px-4 pt-6">
-      <h1 className="text-2xl font-bold mb-6">Settings</h1>
+    <main className="flex flex-col min-h-screen pb-24 px-4 pt-6">
+      <h1 className="text-title text-content mb-5">Settings</h1>
 
-      {/* Data transparency note */}
-      <div className="bg-amber-50 text-amber-700 text-sm rounded-2xl p-4 mb-6">
-        <p className="font-semibold mb-1">Your data lives locally</p>
-        <p className="text-xs leading-relaxed">
-          Recurring payments, goal history, and streak are stored in your browser only.
-          Clearing the MiniPay cache will erase them. Export a backup regularly — especially
-          before updating the app.
+      {/* Data transparency */}
+      <div className="bg-warning/10 rounded-card p-4 mb-4">
+        <p className="flex items-center gap-1.5 text-heading text-warning mb-1">
+          <Info size={16} /> Your data lives locally
         </p>
-        <p className="text-xs mt-2 text-amber-600">
-          Bundle history (tx hashes) is permanently on-chain and can always be recovered.
+        <p className="text-caption text-content-muted leading-relaxed">
+          Recurring payments, goal history, and streak are stored on this device only.
+          Clearing the MiniPay cache erases them — export a backup regularly.
+        </p>
+        <p className="text-caption text-content-subtle mt-2">
+          Bundle history (tx hashes) is permanently on-chain and always recoverable.
         </p>
       </div>
 
       {/* Backup */}
-      <div className="border border-gray-200 rounded-2xl p-4 mb-4">
-        <p className="font-semibold text-sm mb-1">Backup & restore</p>
-        <p className="text-xs text-gray-400 mb-4">
-          Export saves your recurring list, goal, and streak to a JSON file. Import restores it.
+      <Card title="Backup & restore">
+        <p className="text-caption text-content-subtle mb-3">
+          Export your recurring list, goal, and streak to a JSON file. Import to restore.
         </p>
-        <div className="space-y-3">
-          <button
-            onClick={handleExport}
-            className="w-full py-3 rounded-xl bg-[#0F6E56] text-white text-sm font-semibold active:opacity-80"
-          >
-            Export backup (.json)
-          </button>
-          <button
-            onClick={() => fileRef.current?.click()}
-            className="w-full py-3 rounded-xl border border-gray-200 text-gray-700 text-sm font-semibold active:bg-gray-50"
-          >
-            Import backup
-          </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".json,application/json"
-            className="hidden"
-            onChange={handleImport}
-          />
-          {importStatus === 'ok' && (
-            <p className="text-xs text-green-600 text-center">Restored ✓ — reloading…</p>
-          )}
-          {importStatus === 'error' && (
-            <p className="text-xs text-red-500 text-center">Invalid backup file</p>
-          )}
-        </div>
+        <button
+          onClick={handleExport}
+          className="w-full py-3 mb-2 rounded-card bg-brand text-white text-body font-semibold flex items-center justify-center gap-2 shadow-ring active:scale-[0.99] transition-transform"
+        >
+          <Download size={17} /> Export backup
+        </button>
+        <button
+          onClick={() => fileRef.current?.click()}
+          className="w-full py-3 rounded-card border border-line text-content text-body font-semibold flex items-center justify-center gap-2 active:bg-surface-sunken"
+        >
+          <Upload size={17} /> Import backup
+        </button>
+        <input ref={fileRef} type="file" accept=".json,application/json" className="hidden" onChange={handleImport} />
+        {importStatus === 'ok' && <p className="text-caption text-success text-center mt-2">Restored · reloading…</p>}
+        {importStatus === 'error' && <p className="text-caption text-danger text-center mt-2">Invalid backup file</p>}
+      </Card>
+
+      {/* How the goal works */}
+      <Card title="How the savings goal works">
+        <p className="flex items-center gap-1.5 text-caption text-content-muted leading-relaxed mb-2">
+          <ShieldCheck size={14} className="text-brand shrink-0 mt-0.5" />
+          The goal is a commitment tracker, not a vault. Your funds stay in your own wallet at
+          all times — nothing is locked or moved until you tap Settle.
+        </p>
+        <p className="text-caption text-content-subtle leading-relaxed">
+          Before settling, Bundl reads your real wallet balance on-chain and warns you if it&apos;s
+          insufficient.
+        </p>
+      </Card>
+
+      {/* Links */}
+      <div className="bg-surface-raised border border-line rounded-card shadow-card divide-y divide-line">
+        <LinkRow href="https://t.me/bundlsupport" external Icon={LifeBuoy} label="Support" />
+        <LinkRow href="/stats" Icon={BarChart3} label="Stats" />
+        <LinkRow href="/terms" Icon={FileText} label="Terms of service" />
+        <LinkRow href="/privacy" Icon={Lock} label="Privacy policy" />
       </div>
 
-      {/* What the goal tracker is */}
-      <div className="border border-gray-200 rounded-2xl p-4 mb-4">
-        <p className="font-semibold text-sm mb-1">How the savings goal works</p>
-        <p className="text-xs text-gray-500 leading-relaxed">
-          The goal tracker is a <strong>commitment tool</strong>, not a vault. Marking a daily
-          commitment builds your streak and tracks your progress toward the monthly total.
-          Your funds stay in your own wallet at all times — nothing is locked or transferred
-          until you tap <em>Settle</em>.
-        </p>
-        <p className="text-xs text-gray-500 mt-2 leading-relaxed">
-          Before settling, Bundl reads your actual wallet balance on-chain and warns you if
-          it's insufficient.
-        </p>
-      </div>
-
-      <AppFooter />
       <BottomNav />
     </main>
+  )
+}
+
+function Card({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="bg-surface-raised border border-line rounded-card shadow-card p-4 mb-4">
+      <p className="text-heading text-content mb-2">{title}</p>
+      {children}
+    </div>
+  )
+}
+
+function LinkRow({
+  href, label, Icon, external,
+}: {
+  href: string
+  label: string
+  Icon: typeof LifeBuoy
+  external?: boolean
+}) {
+  const content = (
+    <div className="flex items-center gap-3 px-4 py-3.5 active:bg-surface-sunken">
+      <Icon size={18} className="text-content-muted" />
+      <span className="flex-1 text-body text-content">{label}</span>
+      <ChevronRight size={17} className="text-content-subtle" />
+    </div>
+  )
+  return external ? (
+    <a href={href} target="_blank" rel="noopener noreferrer">{content}</a>
+  ) : (
+    <Link href={href}>{content}</Link>
   )
 }

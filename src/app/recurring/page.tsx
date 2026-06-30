@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { isAddress } from 'viem'
+import { Plus, Trash2, Contact, Repeat } from 'lucide-react'
 import { BottomNav } from '@/components/BottomNav'
-import { AppFooter } from '@/components/AppFooter'
+import { RecipientRow } from '@/components/RecipientRow'
+import { usd } from '@/lib/format'
 import {
   type Recurring,
   getRecurring,
@@ -11,7 +13,7 @@ import {
   updateRecurring,
   deleteRecurring,
 } from '@/lib/storage'
-import { pickContact, isMiniPayEnv } from '@/lib/socialconnect'
+import { pickContact } from '@/lib/socialconnect'
 
 const EMPTY_FORM = { name: '', address: '', amount: '' }
 
@@ -73,8 +75,7 @@ export default function RecurringPage() {
       amount: parseFloat(form.amount),
     }
     if (sheet === 'add') {
-      const newItem = addRecurring(data)
-      setItems((prev) => [...prev, newItem])
+      setItems((prev) => [...prev, addRecurring(data)])
     } else if (editing) {
       const updated = { ...editing, ...data }
       updateRecurring(updated)
@@ -90,55 +91,49 @@ export default function RecurringPage() {
   }
 
   return (
-    <main className="flex flex-col min-h-screen pb-20 px-4 pt-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Recurring</h1>
+    <main className="flex flex-col min-h-screen pb-24 px-4 pt-6">
+      <div className="flex items-center justify-between mb-5">
+        <h1 className="text-title text-content">Recurring</h1>
         <button
           onClick={openAdd}
-          className="w-9 h-9 flex items-center justify-center rounded-full bg-[#0F6E56] text-white text-xl"
+          className="w-10 h-10 flex items-center justify-center rounded-full bg-brand text-white shadow-ring active:scale-90 transition-transform"
+          aria-label="Add payment"
         >
-          +
+          <Plus size={20} />
         </button>
       </div>
 
       {items.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center text-center text-gray-400 py-20">
-          <p className="text-4xl mb-3">📋</p>
-          <p className="text-sm mb-4">No recurring payments yet.</p>
+        <div className="flex-1 flex flex-col items-center justify-center text-center py-20">
+          <div className="w-14 h-14 rounded-full bg-surface-sunken flex items-center justify-center mb-4">
+            <Repeat size={24} className="text-content-subtle" />
+          </div>
+          <p className="text-body text-content-muted mb-4">No recurring payments yet.</p>
           <button
             onClick={openAdd}
-            className="px-5 py-2.5 rounded-xl bg-[#0F6E56] text-white text-sm font-medium"
+            className="px-5 py-2.5 rounded-card bg-brand text-white text-body font-medium shadow-ring"
           >
             Add first payment
           </button>
         </div>
       ) : (
         <>
-          <div className="space-y-3 mb-6">
+          <div className="bg-surface-raised border border-line rounded-card shadow-card px-4 divide-y divide-line mb-4">
             {items.map((item) => (
-              <button
+              <RecipientRow
                 key={item.id}
+                name={item.name}
+                address={item.address}
+                amount={item.amount}
+                cadence="monthly"
                 onClick={() => openEdit(item)}
-                className="w-full flex items-center justify-between border border-gray-200 rounded-2xl p-4 text-left active:bg-gray-50"
-              >
-                <div>
-                  <p className="font-semibold text-gray-900">{item.name}</p>
-                  <p className="text-xs text-gray-400 font-mono mt-0.5">
-                    {item.address.slice(0, 8)}…{item.address.slice(-6)}
-                  </p>
-                  <p className="text-xs text-gray-400">Monthly</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-lg font-bold">${item.amount}</p>
-                  <p className="text-xs text-gray-400">per month</p>
-                </div>
-              </button>
+              />
             ))}
           </div>
 
-          <div className="flex justify-between items-center border-t border-gray-100 pt-4">
-            <span className="text-sm text-gray-500">Monthly total</span>
-            <span className="text-lg font-bold">${monthlyTotal}</span>
+          <div className="flex justify-between items-center px-1">
+            <span className="text-body text-content-muted">Monthly total</span>
+            <span className="text-title text-content">${usd(monthlyTotal)}</span>
           </div>
         </>
       )}
@@ -146,63 +141,46 @@ export default function RecurringPage() {
       {/* Bottom sheet — add / edit */}
       {sheet !== 'closed' && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end">
-          <div className="absolute inset-0 bg-black/40" onClick={closeSheet} />
-          <div className="relative bg-white rounded-t-3xl px-5 pt-5 pb-10 space-y-4">
-            <div className="flex justify-between items-center mb-2">
-              <h2 className="text-lg font-bold">
+          <div className="absolute inset-0 bg-black/50 animate-fade-in" onClick={closeSheet} />
+          <div
+            className="relative bg-surface-raised rounded-t-sheet px-5 pt-3 pb-9 space-y-4 shadow-sheet animate-sheet-up"
+            style={{ paddingBottom: 'calc(2.25rem + env(safe-area-inset-bottom))' }}
+          >
+            <div className="w-10 h-1 rounded-full bg-line mx-auto" />
+            <div className="flex justify-between items-center">
+              <h2 className="text-title text-content">
                 {sheet === 'add' ? 'Add payment' : 'Edit payment'}
               </h2>
               {sheet === 'edit' && editing && (
                 <button
                   onClick={() => handleDelete(editing.id)}
-                  className="text-sm text-red-500 font-medium"
+                  className="flex items-center gap-1 text-caption text-danger font-medium"
                 >
-                  Delete
+                  <Trash2 size={15} /> Delete
                 </button>
               )}
             </div>
 
-            {/* Contact picker — MiniPay native, fills name + address in one tap */}
             <button
               onClick={handlePickContact}
-              className="w-full py-3 rounded-xl border border-[#0F6E56] text-[#0F6E56] text-sm font-medium flex items-center justify-center gap-2"
+              className="w-full py-3 rounded-card border border-brand text-brand text-body font-medium flex items-center justify-center gap-2 active:bg-brand/5"
             >
-              <span>👤</span> Pick from contacts
+              <Contact size={18} /> Pick from contacts
             </button>
 
-            <div className="flex items-center gap-2 text-xs text-gray-400">
-              <div className="flex-1 h-px bg-gray-100" />
+            <div className="flex items-center gap-2 text-caption text-content-subtle">
+              <div className="flex-1 h-px bg-line" />
               or enter manually
-              <div className="flex-1 h-px bg-gray-100" />
+              <div className="flex-1 h-px bg-line" />
             </div>
 
-            <Field
-              label="Name"
-              value={form.name}
-              onChange={(v) => setForm((f) => ({ ...f, name: v }))}
-              placeholder="e.g. Rent, Mum, Supplier"
-              error={errors.name}
-            />
-            <Field
-              label="Wallet address"
-              value={form.address}
-              onChange={(v) => setForm((f) => ({ ...f, address: v }))}
-              placeholder="0x…"
-              error={errors.address}
-              mono
-            />
-            <Field
-              label="Amount (USD)"
-              value={form.amount}
-              onChange={(v) => setForm((f) => ({ ...f, amount: v }))}
-              placeholder="0"
-              error={errors.amount}
-              inputMode="decimal"
-            />
+            <Field label="Name" value={form.name} onChange={(v) => setForm((f) => ({ ...f, name: v }))} placeholder="e.g. Rent, Mum, supplier" error={errors.name} />
+            <Field label="Wallet address" value={form.address} onChange={(v) => setForm((f) => ({ ...f, address: v }))} placeholder="0x…" error={errors.address} mono />
+            <Field label="Amount (USD)" value={form.amount} onChange={(v) => setForm((f) => ({ ...f, amount: v }))} placeholder="0" error={errors.amount} inputMode="decimal" />
 
             <button
               onClick={handleSave}
-              className="w-full py-4 rounded-xl font-semibold text-white bg-[#0F6E56] mt-2"
+              className="w-full py-4 rounded-card font-semibold text-white bg-brand shadow-ring active:scale-[0.99] transition-transform"
             >
               {sheet === 'add' ? 'Add payment' : 'Save changes'}
             </button>
@@ -210,7 +188,6 @@ export default function RecurringPage() {
         </div>
       )}
 
-      <AppFooter />
       <BottomNav />
     </main>
   )
@@ -235,17 +212,17 @@ function Field({
 }) {
   return (
     <div>
-      <label className="text-xs font-medium text-gray-500 mb-1 block">{label}</label>
+      <label className="text-caption font-medium text-content-muted mb-1 block">{label}</label>
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         inputMode={inputMode}
-        className={`w-full border rounded-xl px-4 py-3 text-sm outline-none focus:border-[#0F6E56] transition-colors ${
-          mono ? 'font-mono' : ''
-        } ${error ? 'border-red-400' : 'border-gray-200'}`}
+        className={`w-full bg-surface-sunken rounded-card px-4 py-3 text-body text-content outline-none focus:ring-2 focus:ring-brand/40 transition-shadow ${
+          mono ? 'font-mono text-caption' : ''
+        } ${error ? 'ring-2 ring-danger/50' : ''}`}
       />
-      {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+      {error && <p className="text-caption text-danger mt-1">{error}</p>}
     </div>
   )
 }

@@ -1,10 +1,15 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { Receipt, ChevronDown, ChevronUp, ChevronRight, ExternalLink, CheckCircle2 } from 'lucide-react'
 import { BottomNav } from '@/components/BottomNav'
-import { AppFooter } from '@/components/AppFooter'
+import { RecipientRow } from '@/components/RecipientRow'
 import { type Bundle, getBundles } from '@/lib/storage'
 import { DEEPLINKS } from '@/lib/tokens'
+import { usd } from '@/lib/format'
+import { ACTIVE_CHAIN } from '@/lib/chains'
+
+const EXPLORER = ACTIVE_CHAIN.blockExplorers?.default.url ?? 'https://celo-sepolia.blockscout.com'
 
 export default function History() {
   const [bundles, setBundles] = useState<Bundle[]>([])
@@ -14,24 +19,25 @@ export default function History() {
   }, [])
 
   return (
-    <main className="flex flex-col min-h-screen pb-20 px-4 pt-6">
-      <h1 className="text-2xl font-bold mb-6">History</h1>
+    <main className="flex flex-col min-h-screen pb-24 px-4 pt-6">
+      <h1 className="text-title text-content mb-5">History</h1>
 
       {bundles.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center text-center text-gray-400 py-20">
-          <p className="text-4xl mb-3">📄</p>
-          <p className="text-sm">No settlements yet.</p>
-          <p className="text-sm mt-1">Settle your first bundle from the home screen.</p>
+        <div className="flex-1 flex flex-col items-center justify-center text-center py-20">
+          <div className="w-14 h-14 rounded-full bg-surface-sunken flex items-center justify-center mb-4">
+            <Receipt size={24} className="text-content-subtle" />
+          </div>
+          <p className="text-body text-content-muted">No settlements yet.</p>
+          <p className="text-caption text-content-subtle mt-1">Settle your first bundle from Home.</p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {bundles.map((b) => (
             <BundleCard key={b.id} bundle={b} />
           ))}
         </div>
       )}
 
-      <AppFooter />
       <BottomNav />
     </main>
   )
@@ -41,47 +47,41 @@ function BundleCard({ bundle }: { bundle: Bundle }) {
   const [open, setOpen] = useState(false)
 
   return (
-    <div className="border border-gray-200 rounded-2xl p-4">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="w-full flex justify-between items-start text-left"
-      >
-        <div>
-          <p className="font-semibold">${bundle.total} settled</p>
-          <p className="text-xs text-gray-400">{bundle.date}</p>
+    <div className="bg-surface-raised border border-line rounded-card shadow-card p-4">
+      <button onClick={() => setOpen((o) => !o)} className="w-full flex justify-between items-center text-left">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-full bg-success/15 flex items-center justify-center">
+            <CheckCircle2 size={18} className="text-success" />
+          </div>
+          <div>
+            <p className="text-heading text-content">${usd(bundle.total)}</p>
+            <p className="text-caption text-content-subtle">{bundle.date} · {bundle.lines.length} recipients</p>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs bg-green-100 text-green-700 font-medium px-2 py-0.5 rounded-full">
-            confirmed
-          </span>
-          <span className="text-gray-400 text-sm">{open ? '▲' : '▼'}</span>
-        </div>
+        {open ? <ChevronUp size={18} className="text-content-subtle" /> : <ChevronDown size={18} className="text-content-subtle" />}
       </button>
 
       {open && (
-        <div className="mt-3 pt-3 border-t border-gray-100">
-          <div className="space-y-1.5 mb-3">
+        <div className="mt-3 pt-1 border-t border-line">
+          <div className="divide-y divide-line mb-2">
             {bundle.lines.map((line, i) => (
-              <div key={i} className="flex justify-between text-sm">
-                <span className="text-gray-700">{line.name}</span>
-                <span className="font-medium">${line.amount}</span>
-              </div>
+              <RecipientRow key={i} name={line.name} address={line.address} amount={line.amount} />
             ))}
           </div>
-          <div className="flex gap-4 mt-1">
+          <div className="flex gap-2 mt-2">
             <a
               href={DEEPLINKS.receipt(bundle.txHash)}
-              className="text-xs text-[#0F6E56] font-medium"
+              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-card bg-brand/10 text-brand text-caption font-medium"
             >
-              View receipt ↗
+              Receipt <ChevronRight size={14} />
             </a>
             <a
-              href={`https://celo-sepolia.blockscout.com/tx/${bundle.txHash}`}
+              href={`${EXPLORER}/tx/${bundle.txHash}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs text-gray-400 font-mono"
+              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-card bg-surface-sunken text-content-muted text-caption font-medium"
             >
-              {bundle.txHash.slice(0, 10)}…{bundle.txHash.slice(-6)} ↗
+              Explorer <ExternalLink size={13} />
             </a>
           </div>
         </div>

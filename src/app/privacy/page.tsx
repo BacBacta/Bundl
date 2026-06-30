@@ -2,9 +2,9 @@ export default function PrivacyPage() {
   return (
     <main className="flex flex-col min-h-screen px-4 pt-6 pb-10">
       <h1 className="text-2xl font-bold mb-1">Privacy policy</h1>
-      <p className="text-xs text-gray-400 mb-6">Last updated: 30 June 2026</p>
+      <p className="text-xs text-content-subtle mb-6">Last updated: 30 June 2026</p>
 
-      <div className="space-y-5 text-sm text-gray-700">
+      <div className="space-y-5 text-sm text-content-muted">
         <Section title="1. Data we collect">
           Bundl stores your recurring payment list (names, wallet addresses, amounts) and pot
           history locally on your device using browser storage. This data never leaves your device
@@ -49,8 +49,8 @@ export default function PrivacyPage() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h2 className="font-semibold text-gray-900 mb-1">{title}</h2>
-      <p className="leading-relaxed text-gray-600">{children}</p>
+      <h2 className="font-semibold text-content mb-1">{title}</h2>
+      <p className="leading-relaxed text-content-muted">{children}</p>
     </div>
   )
 }

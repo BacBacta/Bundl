@@ -1,7 +1,10 @@
 'use client'
 
+import { PartyPopper, AlertTriangle, Check, Sprout, Lightbulb, type LucideIcon } from 'lucide-react'
+import { usd } from '@/lib/format'
+
 // On-open reminder banner — shown at the top of Home.
-// Communicates pot status and urgency without being noisy.
+// Communicates goal status and urgency without being noisy.
 
 interface Props {
   potBalance: number
@@ -21,70 +24,58 @@ export function ReminderBanner({
   if (monthlyTarget === 0) return null
 
   const potFull = potBalance >= monthlyTarget
-  const remaining = +(monthlyTarget - potBalance).toFixed(2)
+  const remaining = Math.max(0, +(monthlyTarget - potBalance).toFixed(2))
   const daysNeeded = dailyAmount > 0 ? Math.ceil(remaining / dailyAmount) : 999
   const isUrgent = daysUntilSettlement <= 3 && !potFull
   const isAlmostFull = potBalance / monthlyTarget >= 0.8 && !potFull
 
   if (potFull) {
-    return (
-      <Banner color="green" icon="🎉">
-        Your pot is full — settle today.
-      </Banner>
-    )
+    return <Banner tone="success" Icon={PartyPopper}>Your goal is reached — settle today.</Banner>
   }
-
   if (isUrgent) {
     return (
-      <Banner color="red" icon="⚠️">
-        Settlement in {daysUntilSettlement} day{daysUntilSettlement !== 1 ? 's' : ''} — you still
-        need ${remaining}. Add ${dailyAmount} now.
+      <Banner tone="danger" Icon={AlertTriangle}>
+        Settlement in {daysUntilSettlement} day{daysUntilSettlement !== 1 ? 's' : ''} — ${usd(remaining)} to go.
       </Banner>
     )
   }
-
   if (todayDone) {
-    return (
-      <Banner color="gray" icon="✓">
-        Added today. Come back tomorrow to keep your streak going.
-      </Banner>
-    )
+    return <Banner tone="neutral" Icon={Check}>Committed today. Come back tomorrow to keep your streak.</Banner>
   }
-
   if (isAlmostFull) {
     return (
-      <Banner color="green" icon="🪴">
-        Almost there — ${remaining} left. {daysNeeded <= daysUntilSettlement ? 'You\'re on track.' : 'Add more today.'}
+      <Banner tone="success" Icon={Sprout}>
+        Almost there — ${usd(remaining)} left.{' '}
+        {daysNeeded <= daysUntilSettlement ? "You're on track." : 'Commit more today.'}
       </Banner>
     )
   }
-
   return (
-    <Banner color="blue" icon="💡">
-      Add ${dailyAmount} today — {daysUntilSettlement} days until settlement.
+    <Banner tone="brand" Icon={Lightbulb}>
+      Commit ${usd(dailyAmount)} today — {daysUntilSettlement} days until settlement.
     </Banner>
   )
 }
 
-const COLORS = {
-  green: 'bg-green-50 text-green-800',
-  red: 'bg-red-50 text-red-700',
-  blue: 'bg-blue-50 text-blue-800',
-  gray: 'bg-gray-50 text-gray-600',
+const TONES = {
+  success: 'bg-success/10 text-success',
+  danger: 'bg-danger/10 text-danger',
+  brand: 'bg-brand/10 text-brand',
+  neutral: 'bg-surface-sunken text-content-muted',
 }
 
 function Banner({
-  color,
-  icon,
+  tone,
+  Icon,
   children,
 }: {
-  color: keyof typeof COLORS
-  icon: string
+  tone: keyof typeof TONES
+  Icon: LucideIcon
   children: React.ReactNode
 }) {
   return (
-    <div className={`flex items-start gap-2 rounded-2xl px-4 py-3 text-sm mb-4 ${COLORS[color]}`}>
-      <span className="shrink-0">{icon}</span>
+    <div className={`flex items-center gap-2.5 rounded-card px-4 py-3 text-caption mb-4 ${TONES[tone]}`}>
+      <Icon size={18} className="shrink-0" />
       <span>{children}</span>
     </div>
   )

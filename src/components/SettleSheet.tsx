@@ -2,15 +2,18 @@
 
 import { useState } from 'react'
 import { parseUnits } from 'viem'
+import { Check, ChevronRight, Loader2, ExternalLink, X } from 'lucide-react'
 import { getTokenDecimals, ensureApproval, disperseToken } from '@/lib/disperse'
 import type { StablecoinBalance } from '@/lib/stablecoin'
 import { redirectToDeposit } from '@/lib/stablecoin'
 import { DEEPLINKS, FEE_RECIPIENT, SERVICE_FEE_USD } from '@/lib/tokens'
 import type { Recurring, Bundle } from '@/lib/storage'
 import { usd, round2 } from '@/lib/format'
+import { ACTIVE_CHAIN } from '@/lib/chains'
+import { RecipientRow } from './RecipientRow'
 
-const FEE_ENABLED =
-  FEE_RECIPIENT !== '0x0000000000000000000000000000000000000000'
+const FEE_ENABLED = FEE_RECIPIENT !== '0x0000000000000000000000000000000000000000'
+const EXPLORER = ACTIVE_CHAIN.blockExplorers?.default.url ?? 'https://celo-sepolia.blockscout.com'
 
 type Step = 'confirm' | 'settling' | 'done' | 'error'
 
@@ -29,6 +32,7 @@ export function SettleSheet({ recurring, token, onSuccess, onClose }: Props) {
   const [submitting, setSubmitting] = useState(false)
 
   const total = round2(recurring.reduce((s, r) => s + r.amount, 0))
+  const grandTotal = round2(total + (FEE_ENABLED ? SERVICE_FEE_USD : 0))
 
   function addLog(msg: string) {
     setLog((prev) => [...prev, msg])
@@ -36,8 +40,8 @@ export function SettleSheet({ recurring, token, onSuccess, onClose }: Props) {
 
   function friendlyError(e: unknown): string {
     const msg = e instanceof Error ? e.message : String(e)
-    if (/user rejected|denied|cancel/i.test(msg)) return 'Transaction cancelled by user.'
-    if (/insufficient.*fee|gas/i.test(msg)) return 'Not enough CELO for gas. Add a small amount of CELO to your wallet.'
+    if (/user rejected|denied|cancel/i.test(msg)) return 'Transaction cancelled.'
+    if (/insufficient.*fee|gas/i.test(msg)) return 'Not enough CELO for gas. Add a little CELO to your wallet.'
     if (/allowance|approve/i.test(msg)) return 'Approval failed. Please try again.'
     if (/timeout|network|fetch/i.test(msg)) return 'Network timeout. Check your connection and retry.'
     if (/revert/i.test(msg)) return 'Transaction reverted — a recipient address may be invalid.'
@@ -46,7 +50,6 @@ export function SettleSheet({ recurring, token, onSuccess, onClose }: Props) {
 
   async function settle() {
     if (submitting) return
-    // Guard: redirect to deposit if balance is insufficient
     if (token.humanBalance < total) {
       redirectToDeposit()
       return
@@ -60,7 +63,6 @@ export function SettleSheet({ recurring, token, onSuccess, onClose }: Props) {
       const allRecipients = [...recurring.map((r) => r.address)]
       const allAmounts = [...recurring.map((r) => parseUnits(r.amount.toString(), decimals))]
 
-      // Append service fee as extra recipient (non-custodial — goes direct to treasury)
       if (FEE_ENABLED) {
         allRecipients.push(FEE_RECIPIENT)
         allAmounts.push(parseUnits(SERVICE_FEE_USD.toString(), decimals))
@@ -68,34 +70,22 @@ export function SettleSheet({ recurring, token, onSuccess, onClose }: Props) {
 
       const totalAmount = allAmounts.reduce((a, b) => a + b, 0n)
 
-      addLog(`Token: ${token.symbol}`)
-      addLog('Checking allowance…')
+      addLog(`Using ${token.symbol}`)
+      addLog('Checking allowance')
       const approveTx = await ensureApproval(token.address, totalAmount)
-      if (approveTx) {
-        addLog('Approved ✓')
-      } else {
-        addLog('Allowance ok, 1-tap path ✓')
-      }
+      addLog(approveTx ? 'Approved' : 'Allowance ready · one-tap path')
 
-      addLog(`Sending to ${recurring.length} recipients…`)
+      addLog(`Sending to ${recurring.length} recipients`)
       const hash = await disperseToken(token.address, allRecipients, allAmounts)
       setTxHash(hash)
-      addLog('Settled ✓')
+      addLog('Settled')
 
       const bundle: Bundle = {
         id: Date.now().toString(),
-        date: new Date().toLocaleDateString('en-GB', {
-          day: 'numeric',
-          month: 'short',
-          year: 'numeric',
-        }),
+        date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
         total,
         txHash: hash,
-        lines: recurring.map((r) => ({
-          name: r.name,
-          address: r.address,
-          amount: r.amount,
-        })),
+        lines: recurring.map((r) => ({ name: r.name, address: r.address, amount: r.amount })),
       }
 
       onSuccess(bundle)
@@ -110,61 +100,63 @@ export function SettleSheet({ recurring, token, onSuccess, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end">
-      <div className="absolute inset-0 bg-black/40" onClick={step === 'confirm' ? onClose : undefined} />
-      <div className="relative bg-white rounded-t-3xl px-5 pt-5 pb-10">
+      <div
+        className="absolute inset-0 bg-black/50 animate-fade-in"
+        onClick={step === 'confirm' ? onClose : undefined}
+      />
+      <div
+        className="relative bg-surface-raised rounded-t-sheet px-5 pt-3 pb-9 shadow-sheet animate-sheet-up"
+        style={{ paddingBottom: 'calc(2.25rem + env(safe-area-inset-bottom))' }}
+      >
+        <div className="w-10 h-1 rounded-full bg-line mx-auto mb-4" />
 
         {/* Confirm */}
         {step === 'confirm' && (
           <>
-            <h2 className="text-lg font-bold mb-1">Settle bundle</h2>
-            <p className="text-sm text-gray-400 mb-4">
-              One transaction will fan out to all recipients.
+            <h2 className="text-title text-content mb-0.5">Settle bundle</h2>
+            <p className="text-caption text-content-subtle mb-4">
+              One transaction pays everyone at once.
             </p>
 
-            <div className="space-y-2 mb-4">
+            <div className="bg-surface-sunken rounded-card px-4 divide-y divide-line mb-3">
               {recurring.map((r) => (
-                <div key={r.id} className="flex justify-between text-sm">
-                  <span className="text-gray-700">{r.name}</span>
-                  <span className="font-medium">${usd(r.amount)}</span>
-                </div>
+                <RecipientRow key={r.id} name={r.name} address={r.address} amount={r.amount} />
               ))}
             </div>
 
-            {FEE_ENABLED && (
-              <div className="flex justify-between text-xs text-gray-400 border-t border-gray-100 pt-3 mb-1">
-                <span>Service fee</span>
-                <span>${usd(SERVICE_FEE_USD)}</span>
+            <div className="px-1 space-y-1.5 mb-4">
+              {FEE_ENABLED && (
+                <div className="flex justify-between text-caption text-content-subtle">
+                  <span>Service fee</span>
+                  <span>${usd(SERVICE_FEE_USD)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-heading text-content">
+                <span>Total</span>
+                <span>${usd(grandTotal)} {token.symbol}</span>
               </div>
-            )}
-            <div className="flex justify-between font-semibold text-sm pt-1 mb-2">
-              <span>Total</span>
-              <span>${usd(round2(total + (FEE_ENABLED ? SERVICE_FEE_USD : 0)))} {token.symbol}</span>
-            </div>
-
-            <div className="flex justify-between text-xs text-gray-400 mb-4">
-              <span>Your {token.symbol} balance</span>
-              <span className={token.humanBalance < total ? 'text-red-500' : 'text-gray-400'}>
-                ${usd(token.humanBalance)}
-              </span>
+              <div className="flex justify-between text-caption">
+                <span className="text-content-subtle">Your {token.symbol} balance</span>
+                <span className={token.humanBalance < total ? 'text-danger font-medium' : 'text-content-muted'}>
+                  ${usd(token.humanBalance)}
+                </span>
+              </div>
             </div>
 
             {token.humanBalance < total && (
-              <div className="bg-amber-50 text-amber-700 text-xs rounded-xl p-3 mb-4">
-                Insufficient balance. Tap below to deposit more.
+              <div className="bg-warning/10 text-warning text-caption rounded-card p-3 mb-4">
+                Insufficient balance — tap below to top up.
               </div>
             )}
 
             <button
               onClick={settle}
               disabled={submitting}
-              className="w-full py-4 rounded-xl font-semibold text-white bg-[#0F6E56] disabled:opacity-50 active:opacity-80"
+              className="w-full py-4 rounded-card font-semibold text-white bg-brand shadow-ring disabled:opacity-50 active:scale-[0.99] transition-transform"
             >
-              {submitting ? 'Processing…' : `Confirm — settle $${usd(total)}`}
+              {submitting ? 'Processing…' : `Confirm · $${usd(grandTotal)}`}
             </button>
-            <button
-              onClick={onClose}
-              className="w-full py-3 text-sm text-gray-400 mt-2"
-            >
+            <button onClick={onClose} className="w-full py-3 text-caption text-content-subtle mt-1">
               Cancel
             </button>
           </>
@@ -172,70 +164,75 @@ export function SettleSheet({ recurring, token, onSuccess, onClose }: Props) {
 
         {/* Settling */}
         {step === 'settling' && (
-          <>
-            <h2 className="text-lg font-bold mb-4">Settling…</h2>
-            <div className="bg-gray-950 rounded-xl p-3 font-mono text-xs text-green-400 space-y-1 min-h-[80px]">
-              {log.map((l, i) => <div key={i}>{l}</div>)}
-              <span className="animate-pulse">▋</span>
+          <div className="py-2">
+            <div className="flex items-center gap-2 mb-5">
+              <Loader2 size={20} className="text-brand animate-spin" />
+              <h2 className="text-title text-content">Settling</h2>
             </div>
-          </>
+            <div className="space-y-3">
+              {log.map((l, i) => (
+                <div key={i} className="flex items-center gap-2.5 text-body">
+                  <Check size={16} className="text-success shrink-0" />
+                  <span className="text-content-muted">{l}</span>
+                </div>
+              ))}
+              <div className="flex items-center gap-2.5 text-body text-content-subtle">
+                <Loader2 size={16} className="animate-spin shrink-0" />
+                <span>Waiting for confirmation…</span>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Done */}
         {step === 'done' && (
-          <>
-            <div className="text-center py-4">
-              <div className="text-5xl mb-3">✅</div>
-              <h2 className="text-xl font-bold mb-1">Bundle settled</h2>
-              <p className="text-sm text-gray-400 mb-4">
-                ${usd(total)} sent to {recurring.length} recipients
-              </p>
-              <a
-                href={`https://celo-sepolia.blockscout.com/tx/${txHash}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-gray-400 font-mono"
-              >
-                {txHash.slice(0, 10)}…{txHash.slice(-6)} ↗
-              </a>
+          <div className="text-center pt-2">
+            <div className="w-16 h-16 rounded-full bg-success/15 flex items-center justify-center mx-auto mb-4">
+              <Check size={32} className="text-success" strokeWidth={2.5} />
             </div>
+            <h2 className="text-title text-content mb-1">Bundle settled</h2>
+            <p className="text-caption text-content-subtle mb-5">
+              ${usd(total)} sent to {recurring.length} recipient{recurring.length !== 1 ? 's' : ''}
+            </p>
 
-            {/* Native MiniPay receipt — primary CTA */}
             <a
               href={DEEPLINKS.receipt(txHash)}
-              className="block w-full py-4 rounded-xl font-semibold text-white bg-[#0F6E56] text-center mt-4"
+              className="flex items-center justify-center gap-2 w-full py-4 rounded-card font-semibold text-white bg-brand shadow-ring"
             >
-              View receipt in MiniPay
+              View receipt in MiniPay <ChevronRight size={18} />
             </a>
-            <button
-              onClick={onClose}
-              className="w-full py-3 text-sm text-gray-400"
+            <a
+              href={`${EXPLORER}/tx/${txHash}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-1.5 w-full py-3 text-caption text-content-subtle mt-1"
             >
+              View on explorer <ExternalLink size={13} />
+            </a>
+            <button onClick={onClose} className="w-full py-2 text-caption text-content-subtle">
               Close
             </button>
-          </>
+          </div>
         )}
 
         {/* Error */}
         {step === 'error' && (
-          <>
-            <h2 className="text-lg font-bold mb-3">Something went wrong</h2>
-            <p className="text-sm text-red-600 bg-red-50 rounded-xl p-3 mb-5">
-              {errorMsg}
-            </p>
+          <div className="pt-2">
+            <div className="w-16 h-16 rounded-full bg-danger/15 flex items-center justify-center mx-auto mb-4">
+              <X size={32} className="text-danger" strokeWidth={2.5} />
+            </div>
+            <h2 className="text-title text-content text-center mb-2">Something went wrong</h2>
+            <p className="text-body text-content-muted text-center mb-6">{errorMsg}</p>
             <button
               onClick={() => { setLog([]); setStep('confirm') }}
-              className="w-full py-4 rounded-xl font-semibold text-white bg-[#0F6E56] mb-2"
+              className="w-full py-4 rounded-card font-semibold text-white bg-brand shadow-ring active:scale-[0.99] transition-transform"
             >
               Retry
             </button>
-            <button
-              onClick={onClose}
-              className="w-full py-3 text-sm text-gray-400"
-            >
+            <button onClick={onClose} className="w-full py-3 text-caption text-content-subtle mt-1">
               Close
             </button>
-          </>
+          </div>
         )}
       </div>
     </div>

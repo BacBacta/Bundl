@@ -104,3 +104,15 @@ T0 (blocker) → T1 + T2 (trust + robustness) → T5 → T3 → T7 → T4 → T6
 - T5: TODO
 - T6: TODO
 - T7: TODO
+
+## T8 / T9 — DONE
+- T8: lib/activity.ts (Blockscout tokentx fetch + recurrence detection: group by
+  recipient, ≥2 transfers, ±25% amount consistency, cadence classification,
+  confidence score); DetectedPayments.tsx card with consent line + one-tap add +
+  skip; SocialConnect name cache resolves "Mum"/"Landlord"; mock dataset on testnet.
+- T9: design tokens (light+dark via CSS vars) in tailwind.config + globals.css;
+  lucide-react icons replace all emojis; Header (avatar + handle + bell), GoalRing
+  (SVG circular progress), RecipientRow (deterministic avatar), Skeleton loaders;
+  premium SettleSheet (animated sheet, status log, native receipt); BottomNav with
+  safe-area + active states; footers removed, legal/support moved into /settings;
+  full dark mode.
