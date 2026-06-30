@@ -14,7 +14,8 @@ const config: HardhatUserConfig = {
   },
   networks: {
     celoSepolia: {
-      url: process.env.CELO_SEPOLIA_RPC_URL || 'https://forno.celo-sepolia.celo-testnet.org',
+      // forno's gateway blocks some non-browser clients; use a hardhat-friendly RPC.
+      url: process.env.CELO_SEPOLIA_RPC_URL || 'https://celo-sepolia.gateway.tenderly.co',
       chainId: 11142220,
       accounts,
     },

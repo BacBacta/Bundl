@@ -5,7 +5,7 @@ const SEPOLIA_RPC =
   process.env.NEXT_PUBLIC_CELO_SEPOLIA_RPC_URL ||
   'https://forno.celo-sepolia.celo-testnet.org'
 
-const SEPOLIA_RPC_FALLBACK = 'https://celo-sepolia.drpc.org'
+const SEPOLIA_RPC_FALLBACK = 'https://rpc.ankr.com/celo_sepolia'
 
 export const celoSepolia = defineChain({
   id: 11142220,
