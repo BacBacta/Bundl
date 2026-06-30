@@ -30,10 +30,11 @@ const config: HardhatUserConfig = {
     artifacts: './artifacts',
     cache: './cache',
   },
-  // Celoscan uses the unified Etherscan V2 API
+  // Sepolia verifies on Blockscout (no API key needed — the explorer the app
+  // links to). Mainnet uses Celoscan (Etherscan V2, needs CELOSCAN_API_KEY).
   etherscan: {
     apiKey: {
-      celoSepolia: process.env.CELOSCAN_API_KEY || '',
+      celoSepolia: 'blockscout', // Blockscout ignores the key
       celo: process.env.CELOSCAN_API_KEY || '',
     },
     customChains: [
@@ -41,8 +42,8 @@ const config: HardhatUserConfig = {
         network: 'celoSepolia',
         chainId: 11142220,
         urls: {
-          apiURL: 'https://api-sepolia.celoscan.io/api',
-          browserURL: 'https://sepolia.celoscan.io',
+          apiURL: 'https://celo-sepolia.blockscout.com/api',
+          browserURL: 'https://celo-sepolia.blockscout.com',
         },
       },
       {
