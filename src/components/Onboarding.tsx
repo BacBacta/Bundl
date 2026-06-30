@@ -70,30 +70,46 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
       {/* animated WebGL mesh-gradient background */}
       <MeshGradient className="absolute inset-0 w-full h-full" />
       {/* readability scrim — fades the gradient into the surface where copy sits */}
-      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-surface/30 to-surface pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-surface/20 to-surface pointer-events-none" />
+      {/* focus vignette */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{ background: 'radial-gradient(115% 75% at 50% 32%, transparent 55%, rgba(0,0,0,0.14) 100%)' }}
+      />
       {/* film grain */}
       <Grain opacity={0.05} />
 
-      {/* top bar */}
+      {/* top bar — brand lockup + step counter */}
       <div
-        className="relative flex justify-between items-center px-5 pt-3"
-        style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}
+        className="relative flex justify-between items-center px-6 pt-4"
+        style={{ paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}
       >
-        <span className="text-heading font-bold text-content tracking-tight">Bundl</span>
-        {!last && (
-          <button onClick={finish} className="text-caption text-content-subtle px-2 py-1 active:opacity-60">
-            Skip
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          <span className="w-7 h-7 rounded-[9px] bg-gradient-to-br from-brand-light to-brand-dark flex items-center justify-center text-white font-display font-bold text-sm shadow-ring">
+            B
+          </span>
+          <span className="font-display text-heading font-bold text-content tracking-tight">Bundl</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="font-display text-caption font-semibold text-content-subtle tabular-nums">
+            {String(index + 1).padStart(2, '0')}
+            <span className="opacity-40"> / {String(SLIDES.length).padStart(2, '0')}</span>
+          </span>
+          {!last && (
+            <button onClick={finish} className="text-caption text-content-subtle active:opacity-60">
+              Skip
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* illustration — swipeable, with directional spring slide */}
-      <div className="relative flex-1 flex items-center justify-center px-6">
+      {/* scene — swipeable, elevated with brand glow */}
+      <div className="relative flex-1 flex items-center justify-center px-7">
         <AnimatePresence initial={false} custom={dir} mode="popLayout">
           <motion.div
             key={index}
             custom={dir}
-            className="w-full max-w-[300px] aspect-[5/6]"
+            className="relative w-full max-w-[290px] aspect-[5/6]"
             initial={{ opacity: 0, x: dir * 80, scale: 0.92 }}
             animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={{ opacity: 0, x: dir * -80, scale: 0.92 }}
@@ -106,6 +122,8 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
               else if (info.offset.x > 60) go(index - 1)
             }}
           >
+            {/* soft brand glow behind the floating scene */}
+            <div className="absolute -inset-7 -z-10 bg-brand/20 blur-3xl rounded-[44px]" />
             <slide.Scene />
           </motion.div>
         </AnimatePresence>
@@ -114,45 +132,50 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
       {/* copy + controls */}
       <div
         className="relative px-7 pb-10"
-        style={{ paddingBottom: 'calc(2.5rem + env(safe-area-inset-bottom))' }}
+        style={{ paddingBottom: 'calc(2.75rem + env(safe-area-inset-bottom))' }}
       >
         <AnimatePresence mode="wait">
           <motion.div key={index} variants={textContainer} initial="hidden" animate="show" exit={{ opacity: 0 }}>
-            <motion.p variants={textItem} className="text-caption font-semibold text-brand mb-2">
+            <motion.span
+              variants={textItem}
+              className="inline-block rounded-full bg-brand/10 text-brand px-3 py-1 text-micro font-bold uppercase tracking-[0.16em] mb-4"
+            >
               {slide.eyebrow}
-            </motion.p>
-            <motion.h1 variants={textItem} className="text-display text-content mb-3">
+            </motion.span>
+            <motion.h1
+              variants={textItem}
+              className="font-display text-[2.1rem] leading-[1.05] font-bold tracking-tight text-content mb-3"
+            >
               {slide.title}
             </motion.h1>
-            <motion.p variants={textItem} className="text-body text-content-muted leading-relaxed">
+            <motion.p variants={textItem} className="text-body text-content-muted leading-relaxed max-w-[330px]">
               {slide.body}
             </motion.p>
           </motion.div>
         </AnimatePresence>
 
-        <div className="flex items-center justify-between mt-7">
-          <div className="flex gap-2">
+        <div className="flex items-center justify-between mt-8">
+          <div className="flex gap-2 items-center">
             {SLIDES.map((_, i) => (
               <motion.button
                 key={i}
                 onClick={() => go(i)}
+                aria-label={`Go to step ${i + 1}`}
                 className="h-1.5 rounded-full bg-line overflow-hidden"
-                animate={{ width: i === index ? 24 : 6 }}
+                animate={{ width: i === index ? 28 : 6 }}
                 transition={{ type: 'spring', stiffness: 320, damping: 26 }}
               >
                 {i === index && (
-                  <motion.span
-                    layoutId="dot-fill"
-                    className="block h-full w-full bg-brand rounded-full"
-                  />
+                  <motion.span layoutId="dot-fill" className="block h-full w-full bg-brand rounded-full" />
                 )}
               </motion.button>
             ))}
           </div>
           <motion.button
             onClick={next}
-            whileTap={{ scale: 0.94 }}
-            className="flex items-center gap-2 pl-6 pr-5 py-3.5 rounded-pill font-semibold text-white bg-brand shadow-ring"
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.95 }}
+            className="flex items-center gap-2 pl-7 pr-6 py-4 rounded-pill font-display font-semibold text-white bg-gradient-to-r from-brand-light to-brand shadow-[0_10px_28px_-6px_rgba(15,110,86,0.55)]"
           >
             {last ? 'Get started' : 'Next'}
             <ArrowRight size={18} />

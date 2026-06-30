@@ -1,5 +1,9 @@
 import type { Metadata, Viewport } from 'next'
+import { Sora } from 'next/font/google'
 import './globals.css'
+
+// Premium geometric grotesk for display headings.
+const sora = Sora({ subsets: ['latin'], variable: '--font-display', weight: ['500', '600', '700', '800'] })
 
 export const metadata: Metadata = {
   title: 'Bundl',
@@ -27,7 +31,7 @@ const themeScript = `
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={sora.variable}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>

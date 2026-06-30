@@ -14,7 +14,10 @@ const AV = ['#0F6E56', '#2563EB', '#DB2777', '#EA580C']
 
 function Frame({ children }: { children: React.ReactNode }) {
   return (
-    <div className="relative w-full h-full rounded-[22px] bg-surface-raised border border-line shadow-card overflow-hidden p-4 flex flex-col">
+    <div className="relative w-full h-full rounded-[24px] bg-surface-raised border border-line shadow-[0_24px_60px_-18px_rgba(8,40,30,0.45)] overflow-hidden p-4 flex flex-col">
+      {/* top sheen for glass-like depth */}
+      <div className="absolute inset-x-0 top-0 h-px bg-white/50" />
+      <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-white/[0.06] to-transparent" />
       {children}
     </div>
   )
