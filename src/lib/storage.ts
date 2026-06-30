@@ -139,15 +139,15 @@ export function addDeposit(amount: number): { balance: number; streak: number } 
   return { balance: store.potBalance, streak: store.streak }
 }
 
-// --- Token preference ---
+// --- Token preference (persisted by wallet address) ---
 
-export function getActiveToken(): 'MOCK_USD' | 'USDC' {
+export function getSettlementTokenKey(): string {
   return load().activeToken
 }
 
-export function setActiveToken(token: 'MOCK_USD' | 'USDC') {
+export function setSettlementTokenKey(token: string) {
   const store = load()
-  store.activeToken = token
+  store.activeToken = token as Store['activeToken']
   save(store)
 }
 

@@ -14,13 +14,12 @@ export interface StablecoinBalance {
 const client = createPublicClient({ chain: ACTIVE_CHAIN, transport: http() })
 
 /**
- * Returns the stablecoin with the highest balance.
- * Returns null if the user holds no supported stablecoins.
- * Silently skips tokens that fail (e.g. undeployed MockUSD address).
+ * Returns all stablecoins with a non-zero balance, sorted highest-first.
+ * Silently skips tokens that fail (e.g. undeployed contract).
  */
-export async function getPreferredStablecoin(
+export async function getAllStablecoinBalances(
   userAddress: `0x${string}`,
-): Promise<StablecoinBalance | null> {
+): Promise<StablecoinBalance[]> {
   const entries = Object.entries(TESTNET_STABLECOINS).map(([key, token]) => ({ key, ...token }))
 
   const results = await Promise.allSettled(
@@ -42,15 +41,24 @@ export async function getPreferredStablecoin(
     }),
   )
 
-  const withFunds = results
+  return results
     .filter(
       (r): r is PromiseFulfilledResult<StablecoinBalance> =>
         r.status === 'fulfilled' && r.value.balance > 0n,
     )
     .map((r) => r.value)
     .sort((a, b) => b.humanBalance - a.humanBalance)
+}
 
-  return withFunds[0] ?? null
+/**
+ * Convenience: returns the single stablecoin with the highest balance,
+ * or null if the user holds nothing. Used as a testnet default.
+ */
+export async function getPreferredStablecoin(
+  userAddress: `0x${string}`,
+): Promise<StablecoinBalance | null> {
+  const all = await getAllStablecoinBalances(userAddress)
+  return all[0] ?? null
 }
 
 /**

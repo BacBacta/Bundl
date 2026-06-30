@@ -7,6 +7,7 @@ import type { StablecoinBalance } from '@/lib/stablecoin'
 import { redirectToDeposit } from '@/lib/stablecoin'
 import { DEEPLINKS, FEE_RECIPIENT, SERVICE_FEE_USD } from '@/lib/tokens'
 import type { Recurring, Bundle } from '@/lib/storage'
+import { usd, round2 } from '@/lib/format'
 
 const FEE_ENABLED =
   FEE_RECIPIENT !== '0x0000000000000000000000000000000000000000'
@@ -25,20 +26,33 @@ export function SettleSheet({ recurring, token, onSuccess, onClose }: Props) {
   const [log, setLog] = useState<string[]>([])
   const [txHash, setTxHash] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
-  const total = recurring.reduce((s, r) => s + r.amount, 0)
+  const total = round2(recurring.reduce((s, r) => s + r.amount, 0))
 
   function addLog(msg: string) {
     setLog((prev) => [...prev, msg])
   }
 
+  function friendlyError(e: unknown): string {
+    const msg = e instanceof Error ? e.message : String(e)
+    if (/user rejected|denied|cancel/i.test(msg)) return 'Transaction cancelled by user.'
+    if (/insufficient.*fee|gas/i.test(msg)) return 'Not enough CELO for gas. Add a small amount of CELO to your wallet.'
+    if (/allowance|approve/i.test(msg)) return 'Approval failed. Please try again.'
+    if (/timeout|network|fetch/i.test(msg)) return 'Network timeout. Check your connection and retry.'
+    if (/revert/i.test(msg)) return 'Transaction reverted — a recipient address may be invalid.'
+    return 'Transaction failed. Please try again.'
+  }
+
   async function settle() {
+    if (submitting) return
     // Guard: redirect to deposit if balance is insufficient
     if (token.humanBalance < total) {
       redirectToDeposit()
       return
     }
 
+    setSubmitting(true)
     setStep('settling')
     try {
       const decimals = await getTokenDecimals(token.address)
@@ -87,8 +101,10 @@ export function SettleSheet({ recurring, token, onSuccess, onClose }: Props) {
       onSuccess(bundle)
       setStep('done')
     } catch (e) {
-      setErrorMsg(e instanceof Error ? e.message : String(e))
+      setErrorMsg(friendlyError(e))
       setStep('error')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -109,7 +125,7 @@ export function SettleSheet({ recurring, token, onSuccess, onClose }: Props) {
               {recurring.map((r) => (
                 <div key={r.id} className="flex justify-between text-sm">
                   <span className="text-gray-700">{r.name}</span>
-                  <span className="font-medium">${r.amount}</span>
+                  <span className="font-medium">${usd(r.amount)}</span>
                 </div>
               ))}
             </div>
@@ -117,18 +133,18 @@ export function SettleSheet({ recurring, token, onSuccess, onClose }: Props) {
             {FEE_ENABLED && (
               <div className="flex justify-between text-xs text-gray-400 border-t border-gray-100 pt-3 mb-1">
                 <span>Service fee</span>
-                <span>${SERVICE_FEE_USD.toFixed(2)}</span>
+                <span>${usd(SERVICE_FEE_USD)}</span>
               </div>
             )}
             <div className="flex justify-between font-semibold text-sm pt-1 mb-2">
               <span>Total</span>
-              <span>${(total + (FEE_ENABLED ? SERVICE_FEE_USD : 0)).toFixed(2)} {token.symbol}</span>
+              <span>${usd(round2(total + (FEE_ENABLED ? SERVICE_FEE_USD : 0)))} {token.symbol}</span>
             </div>
 
             <div className="flex justify-between text-xs text-gray-400 mb-4">
               <span>Your {token.symbol} balance</span>
               <span className={token.humanBalance < total ? 'text-red-500' : 'text-gray-400'}>
-                ${token.humanBalance.toFixed(2)}
+                ${usd(token.humanBalance)}
               </span>
             </div>
 
@@ -140,9 +156,10 @@ export function SettleSheet({ recurring, token, onSuccess, onClose }: Props) {
 
             <button
               onClick={settle}
-              className="w-full py-4 rounded-xl font-semibold text-white bg-[#0F6E56] active:opacity-80"
+              disabled={submitting}
+              className="w-full py-4 rounded-xl font-semibold text-white bg-[#0F6E56] disabled:opacity-50 active:opacity-80"
             >
-              Confirm — settle ${total}
+              {submitting ? 'Processing…' : `Confirm — settle $${usd(total)}`}
             </button>
             <button
               onClick={onClose}
@@ -171,7 +188,7 @@ export function SettleSheet({ recurring, token, onSuccess, onClose }: Props) {
               <div className="text-5xl mb-3">✅</div>
               <h2 className="text-xl font-bold mb-1">Bundle settled</h2>
               <p className="text-sm text-gray-400 mb-4">
-                ${total} sent to {recurring.length} recipients
+                ${usd(total)} sent to {recurring.length} recipients
               </p>
               <a
                 href={`https://celo-sepolia.blockscout.com/tx/${txHash}`}
@@ -203,12 +220,18 @@ export function SettleSheet({ recurring, token, onSuccess, onClose }: Props) {
         {step === 'error' && (
           <>
             <h2 className="text-lg font-bold mb-3">Something went wrong</h2>
-            <p className="text-xs text-red-500 bg-red-50 rounded-xl p-3 font-mono mb-5 break-all">
+            <p className="text-sm text-red-600 bg-red-50 rounded-xl p-3 mb-5">
               {errorMsg}
             </p>
             <button
+              onClick={() => { setLog([]); setStep('confirm') }}
+              className="w-full py-4 rounded-xl font-semibold text-white bg-[#0F6E56] mb-2"
+            >
+              Retry
+            </button>
+            <button
               onClick={onClose}
-              className="w-full py-4 rounded-xl font-semibold border border-gray-200 text-gray-700"
+              className="w-full py-3 text-sm text-gray-400"
             >
               Close
             </button>

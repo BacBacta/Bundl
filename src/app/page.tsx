@@ -6,7 +6,9 @@ import { AppFooter } from '@/components/AppFooter'
 import { SettleSheet } from '@/components/SettleSheet'
 import { ReminderBanner } from '@/components/ReminderBanner'
 import { getAccount, isMiniPay } from '@/lib/wallet'
-import { getPreferredStablecoin, redirectToDeposit, type StablecoinBalance } from '@/lib/stablecoin'
+import { usd, round2 } from '@/lib/format'
+import { getAllStablecoinBalances, redirectToDeposit, type StablecoinBalance } from '@/lib/stablecoin'
+import { getSettlementTokenKey, setSettlementTokenKey } from '@/lib/storage'
 import {
   type Recurring,
   type Bundle,
@@ -26,7 +28,8 @@ export default function Home() {
   const [todayDone, setTodayDone] = useState(false)
   const [streak, setStreak] = useState(0)
   const [settling, setSettling] = useState(false)
-  const [preferredToken, setPreferredToken] = useState<StablecoinBalance | null>(null)
+  const [allTokens, setAllTokens] = useState<StablecoinBalance[]>([])
+  const [selectedToken, setSelectedToken] = useState<StablecoinBalance | null>(null)
   const [tokenLoading, setTokenLoading] = useState(false)
 
   useEffect(() => {
@@ -40,18 +43,24 @@ export default function Home() {
       setAccount(addr)
       if (addr) {
         setTokenLoading(true)
-        getPreferredStablecoin(addr)
-          .then(setPreferredToken)
+        getAllStablecoinBalances(addr as `0x${string}`)
+          .then((balances) => {
+            setAllTokens(balances)
+            // Restore previously chosen token, else pick highest balance
+            const savedKey = getSettlementTokenKey()
+            const saved = balances.find((t) => t.key === savedKey)
+            setSelectedToken(saved ?? balances[0] ?? null)
+          })
           .finally(() => setTokenLoading(false))
       }
     })
   }, [])
 
-  const monthlyTarget = recurring.reduce((s, r) => s + r.amount, 0)
-  const dailyAmount = monthlyTarget > 0 ? Math.max(1, Math.round((monthlyTarget / 30) * 100) / 100) : 5
+  const monthlyTarget = round2(recurring.reduce((s, r) => s + r.amount, 0))
+  const dailyAmount = monthlyTarget > 0 ? Math.max(0.01, round2(monthlyTarget / 30)) : 5
   const potPercent = monthlyTarget > 0 ? Math.min(100, Math.round((potBalance / monthlyTarget) * 100)) : 0
   const potFull = monthlyTarget > 0 && potBalance >= monthlyTarget
-  const remaining = Math.max(0, +(monthlyTarget - potBalance).toFixed(2))
+  const remaining = Math.max(0, round2(monthlyTarget - potBalance))
 
   function handleAddToPot() {
     const { balance, streak: newStreak } = addDeposit(dailyAmount)
@@ -119,9 +128,9 @@ export default function Home() {
           <div>
             <p className="text-sm opacity-75 mb-1">Savings goal</p>
             <p className="text-4xl font-bold">
-              ${potBalance}
+              ${usd(potBalance)}
               {monthlyTarget > 0 && (
-                <span className="text-lg font-normal opacity-60"> / ${monthlyTarget}</span>
+                <span className="text-lg font-normal opacity-60"> / ${usd(monthlyTarget)}</span>
               )}
             </p>
             <p className="text-xs opacity-50 mt-1">Commitment tracker — funds stay in your wallet</p>
@@ -143,9 +152,9 @@ export default function Home() {
             </div>
             <div className="flex justify-between items-center">
               <p className="text-xs opacity-60">{potPercent}% of goal</p>
-              {preferredToken && (
+              {selectedToken && (
                 <p className="text-xs opacity-60">
-                  Wallet: ${preferredToken.humanBalance.toFixed(2)} {preferredToken.symbol}
+                  Wallet: ${usd(selectedToken.humanBalance)} {selectedToken.symbol}
                 </p>
               )}
             </div>
@@ -165,7 +174,7 @@ export default function Home() {
           ? 'Goal reached'
           : monthlyTarget === 0
           ? 'Add recurring payments first'
-          : `Mark $${dailyAmount} committed today`}
+          : `Mark $${usd(dailyAmount)} committed today`}
       </button>
 
       {/* Next settlement */}
@@ -176,32 +185,54 @@ export default function Home() {
           {recurring.map((r) => (
             <div key={r.id} className="flex justify-between py-1 text-sm">
               <span className="text-gray-700">{r.name}</span>
-              <span className="font-medium">${r.amount}</span>
+              <span className="font-medium">${usd(r.amount)}</span>
             </div>
           ))}
 
           <div className="border-t border-gray-100 mt-2 pt-2 flex justify-between text-sm font-semibold mb-1">
             <span>Total</span>
-            <span>${monthlyTarget}</span>
+            <span>${usd(monthlyTarget)}</span>
           </div>
           <p className="text-xs text-gray-400 mb-3">Due {dueDate}</p>
+
+          {/* Token picker — explicit selection, persisted */}
+          {!tokenLoading && allTokens.length > 1 && (
+            <div className="flex gap-2 mb-3 flex-wrap">
+              {allTokens.map((t) => (
+                <button
+                  key={t.key}
+                  onClick={() => {
+                    setSelectedToken(t)
+                    setSettlementTokenKey(t.key)
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors ${
+                    selectedToken?.key === t.key
+                      ? 'bg-[#0F6E56] text-white border-[#0F6E56]'
+                      : 'border-gray-200 text-gray-600'
+                  }`}
+                >
+                  {t.symbol} ${usd(t.humanBalance)}
+                </button>
+              ))}
+            </div>
+          )}
 
           {tokenLoading ? (
             <button disabled className="w-full py-3 rounded-xl font-semibold text-white bg-[#0F6E56] opacity-40">
               Checking wallet balance…
             </button>
-          ) : preferredToken && preferredToken.humanBalance >= monthlyTarget ? (
+          ) : selectedToken && selectedToken.humanBalance >= monthlyTarget ? (
             <button
               onClick={() => setSettling(true)}
               className="w-full py-3 rounded-xl font-semibold text-white bg-[#0F6E56] active:opacity-80"
             >
-              Settle in one tap · {preferredToken.symbol}
+              Settle in one tap · {selectedToken.symbol}
             </button>
-          ) : preferredToken && preferredToken.humanBalance > 0 ? (
+          ) : selectedToken && selectedToken.humanBalance > 0 ? (
             // Has some balance but not enough
             <div>
               <div className="bg-amber-50 text-amber-700 text-xs rounded-xl p-3 mb-2">
-                Wallet: ${preferredToken.humanBalance.toFixed(2)} {preferredToken.symbol} — need ${monthlyTarget}. Top up to settle.
+                Wallet: ${usd(selectedToken.humanBalance)} {selectedToken.symbol} — need ${usd(monthlyTarget)}. Top up to settle.
               </div>
               <button
                 onClick={redirectToDeposit}
@@ -215,16 +246,16 @@ export default function Home() {
               onClick={redirectToDeposit}
               className="w-full py-3 rounded-xl font-semibold text-white bg-amber-500 active:opacity-80"
             >
-              Deposit {preferredToken ? preferredToken.symbol : 'stablecoins'} to settle
+              Deposit {selectedToken ? selectedToken.symbol : 'stablecoins'} to settle
             </button>
           )}
         </div>
       )}
 
-      {settling && preferredToken && (
+      {settling && selectedToken && (
         <SettleSheet
           recurring={recurring}
-          token={preferredToken}
+          token={selectedToken}
           onSuccess={handleSettled}
           onClose={() => setSettling(false)}
         />
