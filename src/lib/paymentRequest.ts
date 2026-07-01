@@ -4,6 +4,7 @@
 // address, an amount, and an optional note.
 
 import { isAddress } from 'viem'
+import { toBase64Url, fromBase64Url } from './urlcode'
 
 export interface PaymentRequest {
   to: `0x${string}` // payee (the requester)
@@ -14,17 +15,6 @@ export interface PaymentRequest {
 
 // Short keys keep the URL compact: t=to, m=amount, n=note, w=who(name).
 type Packed = { t: string; m: number; n?: string; w?: string }
-
-function toBase64Url(s: string): string {
-  const b64 = btoa(String.fromCharCode(...new TextEncoder().encode(s)))
-  return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-}
-
-function fromBase64Url(s: string): string {
-  const b64 = s.replace(/-/g, '+').replace(/_/g, '/')
-  const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
-  return new TextDecoder().decode(bytes)
-}
 
 export function encodeRequest(req: PaymentRequest): string {
   const packed: Packed = {

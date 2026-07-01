@@ -7,7 +7,7 @@
 
 import { motion, useMotionValue, useTransform, animate } from 'motion/react'
 import { useEffect } from 'react'
-import { Plus, Flame, Check, Zap, Sparkles } from 'lucide-react'
+import { Plus, Flame, Check, Zap, Sparkles, HandCoins } from 'lucide-react'
 
 const SPRING = { type: 'spring', stiffness: 240, damping: 20 } as const
 const AV = ['#0F6E56', '#2563EB', '#DB2777', '#EA580C']
@@ -206,5 +206,81 @@ export function ProductSettle() {
         <Zap size={14} /> Settle in one tap
       </motion.div>
     </Frame>
+  )
+}
+
+// ── Step 4 — a request link brings money in from several people ────
+const REQ_LOOP = 3.4
+
+export function ProductRequest() {
+  return (
+    <Frame>
+      <div className="relative flex-1">
+        <svg viewBox="0 0 260 196" className="absolute inset-0 w-full h-full" fill="none">
+          {/* connectors — reversed direction: senders -> hub */}
+          {TARGETS.map((t, i) => (
+            <line key={i} x1={t.x} y1={t.y} x2={HUB.x} y2={HUB.y} stroke="#1D9E75" strokeOpacity="0.25" strokeWidth="2" strokeDasharray="2 6" strokeLinecap="round" />
+          ))}
+          {/* coins flowing inward, looping */}
+          {TARGETS.map((t, i) => (
+            <motion.circle
+              key={`c${i}`} r="6" fill="#1D9E75"
+              initial={{ cx: t.x, cy: t.y, opacity: 0 }}
+              animate={{ cx: [t.x, HUB.x], cy: [t.y, HUB.y], opacity: [0, 1, 1, 0] }}
+              transition={{ duration: 1.1, repeat: Infinity, repeatDelay: REQ_LOOP - 1.1, delay: 1 + i * 0.12, times: [0, 0.2, 0.8, 1], ease: 'easeInOut' }}
+            />
+          ))}
+          {/* senders */}
+          {TARGETS.map((t, i) => (
+            <g key={`t${i}`} transform={`translate(${t.x}, ${t.y})`}>
+              <circle r="15" fill="white" />
+              <circle r="15" stroke="#E6E9E8" strokeWidth="1" fill="none" />
+              <circle r="15" fill={AV[i + 1]} fillOpacity="0.16" />
+              <circle r="6" fill={AV[i + 1]} />
+            </g>
+          ))}
+          {/* the user's own hub, growing slightly as coins land */}
+          <g transform={`translate(${HUB.x}, ${HUB.y})`}>
+            <motion.circle
+              r="18" fill="#0F6E56"
+              animate={{ scale: [1, 1.12, 1] }}
+              transition={{ duration: REQ_LOOP, repeat: Infinity, times: [0, 0.7, 1], ease: 'easeInOut' }}
+              style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
+            />
+            <HandCoinsIcon />
+          </g>
+        </svg>
+
+        {/* running total ticks up each loop */}
+        <motion.div
+          className="absolute top-2 right-2 flex items-center gap-1 bg-brand/10 text-brand rounded-full px-2 py-0.5 text-micro font-semibold"
+          animate={{ opacity: [0, 0, 1, 1, 0], scale: [0.8, 0.8, 1, 1, 0.9] }}
+          transition={{ duration: REQ_LOOP, repeat: Infinity, times: [0, 0.55, 0.7, 0.92, 1] }}
+        >
+          <Check size={11} /> Received
+        </motion.div>
+      </div>
+
+      {/* the request link */}
+      <motion.div
+        className="flex items-center justify-center gap-2 bg-brand text-white rounded-xl py-2.5 text-caption font-semibold"
+        animate={{ scale: [1, 0.96, 1] }}
+        transition={{ duration: REQ_LOOP, repeat: Infinity, times: [0, 0.12, 0.24], ease: 'easeInOut' }}
+      >
+        <HandCoins size={14} /> Share a request link
+      </motion.div>
+    </Frame>
+  )
+}
+
+function HandCoinsIcon() {
+  // Small inline icon centred inside the SVG hub circle (foreignObject keeps
+  // it crisp at any scale without duplicating the lucide path by hand).
+  return (
+    <foreignObject x="-9" y="-9" width="18" height="18">
+      <div className="w-full h-full flex items-center justify-center text-white">
+        <HandCoins size={12} strokeWidth={2.4} />
+      </div>
+    </foreignObject>
   )
 }

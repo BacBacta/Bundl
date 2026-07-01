@@ -5,6 +5,7 @@
 
 import { isAddress } from 'viem'
 import type { Frequency, Recurring } from './storage'
+import { toBase64Url, fromBase64Url } from './urlcode'
 
 export interface ShareItem {
   name: string
@@ -17,17 +18,6 @@ const FREQS: Frequency[] = ['weekly', 'biweekly', 'monthly']
 
 // Short keys keep the URL compact: n=name, a=address, m=amount, f=frequency.
 type Packed = { n: string; a: string; m: number; f: 0 | 1 | 2 }
-
-function toBase64Url(s: string): string {
-  const b64 = btoa(String.fromCharCode(...new TextEncoder().encode(s)))
-  return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-}
-
-function fromBase64Url(s: string): string {
-  const b64 = s.replace(/-/g, '+').replace(/_/g, '/')
-  const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
-  return new TextDecoder().decode(bytes)
-}
 
 export function encodeBundle(items: ShareItem[]): string {
   const packed: Packed[] = items.map((i) => ({

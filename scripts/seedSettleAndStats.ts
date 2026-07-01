@@ -36,15 +36,15 @@ async function main() {
   await new Promise((r) => setTimeout(r, 30000))
 
   const { fetchContractStats } = await import('../src/lib/analytics')
-  const { fetchOnchainBundles } = await import('../src/lib/onchainHistory')
+  const { fetchOnchainActivity } = await import('../src/lib/onchainHistory')
 
   const stats = await fetchContractStats()
   console.log('\n/stats — fetchContractStats():')
   console.log(JSON.stringify(stats, null, 2))
 
-  const bundles = await fetchOnchainBundles(deployer.address as `0x${string}`)
-  console.log('\n/history — fetchOnchainBundles() for', deployer.address, ':')
-  console.log(JSON.stringify(bundles, null, 2))
+  const { bundles, payments } = await fetchOnchainActivity(deployer.address as `0x${string}`)
+  console.log('\n/history — fetchOnchainActivity() for', deployer.address, ':')
+  console.log(JSON.stringify({ bundles, payments }, null, 2))
 
   console.log(`\nBlockscout tx: https://celo-sepolia.blockscout.com/tx/${tx.hash}`)
   console.log(`Blockscout contract: https://celo-sepolia.blockscout.com/address/${disperseAddr}`)

@@ -7,7 +7,13 @@ export const DISPERSE_ADDRESS = (
   process.env.NEXT_PUBLIC_DISPERSE_ADDRESS || '0x0000000000000000000000000000000000000000'
 ) as `0x${string}`
 
-// Treasury address that receives the per-bundle service fee
+// Treasury address that receives the per-bundle service fee.
+//
+// Fee policy (intentional, not an oversight): the $0.15 fee applies ONLY to
+// recurring bundle settlements (SettleSheet), the paid core product. Direct
+// P2P payments and bill splits via /pay are, and stay, fee-free — they are
+// growth/acquisition tools (Idea B — see product notes) and charging on them
+// would tax the exact flows meant to bring new users into Bundl.
 export const FEE_RECIPIENT = (
   process.env.NEXT_PUBLIC_FEE_RECIPIENT || '0x0000000000000000000000000000000000000000'
 ) as `0x${string}`

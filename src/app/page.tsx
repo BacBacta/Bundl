@@ -122,22 +122,7 @@ export default function Home() {
     <main className="flex flex-col min-h-screen pb-24 px-4 pt-4">
       <Header account={account} inMiniPay={inMiniPay} />
 
-      <ReminderBanner
-        potBalance={potBalance}
-        monthlyTarget={monthlyTarget}
-        dailyAmount={dailyAmount}
-        todayDone={todayDone}
-        daysUntilSettlement={daysUntilSettlement}
-      />
-
-      {/* T8 — detected payments */}
-      <DetectedPayments
-        suggestions={suggestions}
-        existingAddresses={recurring.map((r) => r.address)}
-        onAdd={handleAddDetected}
-      />
-
-      {/* Goal hero — clean fintech: big number, slim progress, one accent */}
+      {/* Goal hero — the primary thing on this screen, clean fintech style */}
       <section className="mt-1 mb-7 px-1">
         <div className="flex items-center justify-between mb-2">
           <p className="text-caption text-content-muted font-medium">Savings goal</p>
@@ -175,6 +160,15 @@ export default function Home() {
         )}
       </section>
 
+      {/* Urgency alert — only shown when settlement is genuinely at risk */}
+      <ReminderBanner
+        potBalance={potBalance}
+        monthlyTarget={monthlyTarget}
+        dailyAmount={dailyAmount}
+        todayDone={todayDone}
+        daysUntilSettlement={daysUntilSettlement}
+      />
+
       {/* Empty state */}
       {recurring.length === 0 && (
         <a
@@ -185,7 +179,7 @@ export default function Home() {
         </a>
       )}
 
-      {/* Commit button */}
+      {/* Commit button — primary action, right under the goal */}
       {monthlyTarget > 0 && (
         <button
           onClick={handleAddToPot}
@@ -215,9 +209,15 @@ export default function Home() {
           </div>
 
           <div className="flex justify-between text-heading text-content border-t border-line pt-3 mb-3">
-            <span>Total</span>
+            <span>You&apos;ll settle</span>
             <span>${usd(settleTotal)}</span>
           </div>
+          {Math.abs(settleTotal - monthlyTarget) > 0.01 && (
+            <p className="text-micro text-content-subtle -mt-2 mb-3">
+              Your ${usd(monthlyTarget)} goal spreads weekly/biweekly payments into one monthly
+              number — settling still pays each person their full amount.
+            </p>
+          )}
 
           {/* Token picker */}
           {!tokenLoading && allTokens.length > 1 && (
@@ -272,6 +272,13 @@ export default function Home() {
           )}
         </div>
       )}
+
+      {/* Detected payments — secondary discovery, below the core goal/settle flow */}
+      <DetectedPayments
+        suggestions={suggestions}
+        existingAddresses={recurring.map((r) => r.address)}
+        onAdd={handleAddDetected}
+      />
 
       {settling && selectedToken && (
         <SettleSheet

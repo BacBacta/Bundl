@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { ArrowRight } from 'lucide-react'
 import { motion, AnimatePresence, MotionConfig, type Variants } from 'motion/react'
-import { ProductPeople, ProductHabit, ProductSettle } from './ProductScenes'
+import { ProductPeople, ProductHabit, ProductSettle, ProductRequest } from './ProductScenes'
 import { MeshGradient } from './MeshGradient'
 import { Grain } from './Grain'
 import { markOnboarded } from '@/lib/onboarding'
@@ -33,6 +33,12 @@ const SLIDES: Slide[] = [
     eyebrow: 'Step 3',
     title: 'Settle in one tap',
     body: 'Pay everyone at once in a single transaction — confirmed with one tap, with a native MiniPay receipt.',
+  },
+  {
+    Scene: ProductRequest,
+    eyebrow: 'Step 4',
+    title: 'Get paid, instantly',
+    body: 'Request money or split a bill with a link — anyone can pay you in one tap, even before they have Bundl.',
   },
 ]
 

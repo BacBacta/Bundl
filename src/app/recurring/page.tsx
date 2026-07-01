@@ -171,9 +171,13 @@ export default function RecurringPage() {
           </div>
 
           <div className="flex justify-between items-center px-1">
-            <span className="text-body text-content-muted">Monthly total</span>
+            <span className="text-body text-content-muted">Monthly goal</span>
             <span className="text-title text-content">${usd(monthlyTotal)}</span>
           </div>
+          <p className="text-micro text-content-subtle px-1 mt-1">
+            Weekly and biweekly payments are combined into one monthly number — each is still
+            paid at its full amount when settled.
+          </p>
         </>
       )}
 

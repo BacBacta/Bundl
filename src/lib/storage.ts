@@ -44,10 +44,23 @@ export interface Bundle {
   lines: BundleLine[]
 }
 
+// A single peer-to-peer payment (via /pay — Request or Split), distinct from
+// a Bundle settlement. Tracked so it shows up in History like any other
+// outgoing payment instead of disappearing once sent.
+export interface Payment {
+  id: string
+  date: string
+  txHash: string
+  to: string
+  toName: string
+  amount: number
+}
+
 interface Store {
   recurring: Recurring[]
   deposits: DailyDeposit[]
   bundles: Bundle[]
+  payments: Payment[]
   potBalance: number
   streak: number
   lastDepositDate: string
@@ -60,7 +73,9 @@ function load(): Store {
   if (typeof window === 'undefined') return empty()
   try {
     const raw = localStorage.getItem(KEY)
-    return raw ? (JSON.parse(raw) as Store) : empty()
+    if (!raw) return empty()
+    // Backfill fields added after initial release so older saved stores don't crash.
+    return { ...empty(), ...(JSON.parse(raw) as Partial<Store>) } as Store
   } catch {
     return empty()
   }
@@ -71,6 +86,7 @@ function empty(): Store {
     recurring: [],
     deposits: [],
     bundles: [],
+    payments: [],
     potBalance: 0,
     streak: 0,
     lastDepositDate: '',
@@ -182,6 +198,18 @@ export function addBundle(bundle: Bundle) {
   const store = load()
   store.bundles = [...store.bundles, bundle]
   store.potBalance = 0
+  save(store)
+}
+
+// --- Payments (single P2P sends via /pay — Request or Split) ---
+
+export function getPayments(): Payment[] {
+  return [...load().payments].reverse()
+}
+
+export function addPayment(payment: Payment) {
+  const store = load()
+  store.payments = [...store.payments, payment]
   save(store)
 }
 

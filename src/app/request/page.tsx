@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { HandCoins, Users, Share2, Check } from 'lucide-react'
+import { HandCoins, Users, Share2, Check, Sparkles } from 'lucide-react'
 import { BottomNav } from '@/components/BottomNav'
 import { getAccount, isMiniPay } from '@/lib/wallet'
 import { getCachedName } from '@/lib/socialconnect'
@@ -102,6 +102,9 @@ export default function RequestPage() {
           )}
           <p className="text-hero text-content">${usd(perPerson)}</p>
           {note && <p className="text-caption text-content-subtle mt-1">for {note}</p>}
+          <p className="flex items-center gap-1 text-micro text-success mt-3">
+            <Sparkles size={11} /> No Bundl fee — 100% goes to you.
+          </p>
         </div>
       )}
 
