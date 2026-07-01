@@ -1,28 +1,56 @@
 // Phone number -> wallet address resolution via SocialConnect (ODIS +
-// FederatedAttestations). Runs server-side because ODIS lookups require
-// paying quota from a funded account and should never expose a private key
-// to the client.
+// FederatedAttestations). Runs server-side because ODIS lookups consume
+// quota paid by a funded account and must never expose that key to the
+// client.
 //
-// STATUS: scaffolded, not wired to a live account. Two things are required
-// before this returns real results:
-//   1. ODIS_PRIVATE_KEY — a funded Celo account (small cUSD/CELO balance) used
-//      only to pay ODIS quota. Never reuse the contract-deploy PRIVATE_KEY.
-//   2. A BLS blinding client for the ODIS blinding step (the `@celo/identity`
-//      SDK's getPhoneNumberIdentifier expects a `blsBlindingClient` — e.g.
-//      `@celo/phone-number-privacy-common`'s WASM blinding client). This is a
-//      real, non-trivial dependency we deliberately did not add speculatively
-//      — see https://docs.celo.org/developer/contractkit/odis for the current
-//      recommended client.
-// Until both are configured, this route fails safe: it returns 501 with a
-// clear reason instead of a broken or fake result. The client hook
-// (src/lib/phoneResolve.ts) treats any non-OK response as "not available" and
-// falls back to manual address entry / the MiniPay contact picker — no user
-// ever sees an error, they just don't get this optional shortcut yet.
+// Flow: blind the phone number -> ask ODIS to sign the blinded value
+// (consumes quota) -> unblind to get a pepper -> hash into an obfuscated
+// identifier -> look up that identifier in FederatedAttestations (mainnet
+// only — SocialConnect attestations are not deployed on Sepolia) for the
+// MiniPay-issued attestation.
+//
+// Requires ODIS_PRIVATE_KEY: a funded Celo account (small cUSD/CELO balance,
+// used only to pay ODIS quota) — never reuse the contract-deploy PRIVATE_KEY.
+//
+// Known caveat: the SDK's testnet ODIS context is keyed to the legacy
+// "Alfajores" network (chain 44787), not Celo Sepolia (chain 11142220).
+// These are different chains post-migration — verify carefully in whichever
+// environment ODIS_PRIVATE_KEY's account actually has quota on. If Alfajores
+// lookups don't resolve, mainnet (with small quota top-ups) is the reliable
+// path since that's what MiniPay itself uses in production.
 
 import { NextResponse } from 'next/server'
+import { privateKeyToAccount } from 'viem/accounts'
+import { createPublicClient, http } from 'viem'
+import { OdisUtils } from '@celo/identity'
+import { celoMainnet } from '@/lib/chains'
 import { SOCIALCONNECT } from '@/lib/tokens'
 
 export const runtime = 'nodejs'
+
+const { getServiceContext, AuthenticationMethod, OdisContextName, OdisAPI } = OdisUtils.Query
+const { getObfuscatedIdentifier, IdentifierPrefix } = OdisUtils.Identifier
+
+// Minimal ABI — just the one read we need, inlined to avoid depending on
+// @celo/abis' package export map (which blocks direct subpath imports).
+const FEDERATED_ATTESTATIONS_ABI = [
+  {
+    name: 'lookupAttestations',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'identifier', type: 'bytes32' },
+      { name: 'trustedIssuers', type: 'address[]' },
+    ],
+    outputs: [
+      { name: 'countsPerIssuer', type: 'uint256[]' },
+      { name: 'accounts', type: 'address[]' },
+      { name: 'signers', type: 'address[]' },
+      { name: 'issuedOns', type: 'uint64[]' },
+      { name: 'publishedOns', type: 'uint64[]' },
+    ],
+  },
+] as const
 
 interface Body {
   phone: string // E.164, e.g. +14155552671
@@ -37,33 +65,46 @@ export async function POST(req: Request) {
   const odisKey = process.env.ODIS_PRIVATE_KEY
   if (!odisKey) {
     return NextResponse.json(
-      {
-        error: 'not_configured',
-        message: 'Phone lookup requires a funded ODIS_PRIVATE_KEY and a BLS blinding client — not set up yet.',
-      },
+      { error: 'not_configured', message: 'ODIS_PRIVATE_KEY is not set.' },
       { status: 501 },
     )
   }
 
   try {
-    // Real flow (once configured):
-    //   1. const authSigner = { authenticationMethod: WALLETKEY, contractKit }
-    //   2. const context = getServiceContext(network) // ODIS combiner URLs
-    //   3. const { plaintextIdentifier } = await getPhoneNumberIdentifier(
-    //        phone, account, authSigner, context, undefined, undefined,
-    //        blsBlindingClient, // <- the missing WASM dependency
-    //      )
-    //   4. const attestations = await federatedAttestations.lookupAttestations(
-    //        plaintextIdentifier, [SOCIALCONNECT.MINIPAY_ISSUER],
-    //      )
-    //   5. Return the first verified address, if any.
-    //
-    // Left unimplemented until the two prerequisites above are in place —
-    // see the module comment. Referencing SOCIALCONNECT here so the intended
-    // trusted issuer is documented at the call site.
-    void SOCIALCONNECT.MINIPAY_ISSUER
-    return NextResponse.json({ error: 'not_configured' }, { status: 501 })
-  } catch {
-    return NextResponse.json({ error: 'lookup_failed' }, { status: 502 })
+    const network = process.env.NEXT_PUBLIC_NETWORK === 'mainnet' ? 'mainnet' : 'alfajores'
+    const context = getServiceContext(
+      network === 'mainnet' ? OdisContextName.MAINNET : OdisContextName.ALFAJORES,
+      OdisAPI.PNP,
+    )
+
+    const key = (odisKey.startsWith('0x') ? odisKey : `0x${odisKey}`) as `0x${string}`
+    const account = privateKeyToAccount(key)
+
+    const { obfuscatedIdentifier } = await getObfuscatedIdentifier(
+      phone,
+      IdentifierPrefix.PHONE_NUMBER,
+      account.address,
+      { authenticationMethod: AuthenticationMethod.ENCRYPTION_KEY, rawKey: odisKey },
+      context,
+    )
+
+    // SocialConnect attestations live on Celo mainnet regardless of which
+    // network the rest of the app is pointed at.
+    const client = createPublicClient({ chain: celoMainnet, transport: http() })
+    const [, accounts] = await client.readContract({
+      address: SOCIALCONNECT.FEDERATED_ATTESTATIONS,
+      abi: FEDERATED_ATTESTATIONS_ABI,
+      functionName: 'lookupAttestations',
+      args: [obfuscatedIdentifier as `0x${string}`, [SOCIALCONNECT.MINIPAY_ISSUER]],
+    })
+
+    if (!accounts || accounts.length === 0) {
+      return NextResponse.json({ error: 'not_found' }, { status: 404 })
+    }
+
+    return NextResponse.json({ address: accounts[0] })
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'unknown'
+    return NextResponse.json({ error: 'lookup_failed', message }, { status: 502 })
   }
 }
