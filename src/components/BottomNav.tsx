@@ -2,11 +2,12 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Repeat, Receipt, Settings } from 'lucide-react'
+import { Home, Repeat, HandCoins, Receipt, Settings } from 'lucide-react'
 
 const TABS = [
   { href: '/', label: 'Home', Icon: Home },
   { href: '/recurring', label: 'Recurring', Icon: Repeat },
+  { href: '/request', label: 'Request', Icon: HandCoins },
   { href: '/history', label: 'History', Icon: Receipt },
   { href: '/settings', label: 'Settings', Icon: Settings },
 ]

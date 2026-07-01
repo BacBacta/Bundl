@@ -32,6 +32,19 @@ const ERC20_ABI = [
   },
 ] as const
 
+const ERC20_TRANSFER_ABI = [
+  {
+    name: 'transfer',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'to', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+    ],
+    outputs: [{ name: '', type: 'bool' }],
+  },
+] as const
+
 const DISPERSE_ABI = [
   {
     name: 'disperseToken',
@@ -124,6 +137,37 @@ export async function disperseToken(
     abi: DISPERSE_ABI,
     functionName: 'disperseToken',
     args: [tokenAddress, recipients, amounts],
+    type: 'legacy',
+    ...(feeCurrency ? { feeCurrency } : {}),
+  })
+
+  await publicClient.waitForTransactionReceipt({ hash })
+  return hash
+}
+
+/**
+ * Direct one-to-one stablecoin transfer (for paying a request/split).
+ * No Disperse contract, no approval — a single ERC20 transfer. Legacy tx.
+ */
+export async function transferToken(
+  tokenAddress: `0x${string}`,
+  to: `0x${string}`,
+  amount: bigint,
+  feeCurrency?: `0x${string}`,
+): Promise<`0x${string}`> {
+  const publicClient = getPublicClient()
+  const walletClient = getWalletClient()
+  if (!walletClient) throw new Error('No wallet — run inside MiniPay or a compatible browser wallet')
+
+  const account = await getAccount()
+  if (!account) throw new Error('No account found')
+
+  const hash = await walletClient.writeContract({
+    account,
+    address: tokenAddress,
+    abi: ERC20_TRANSFER_ABI,
+    functionName: 'transfer',
+    args: [to, amount],
     type: 'legacy',
     ...(feeCurrency ? { feeCurrency } : {}),
   })
