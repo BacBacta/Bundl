@@ -9,7 +9,7 @@ import { decodeRequest, type PaymentRequest } from '@/lib/paymentRequest'
 import { getTokenDecimals, transferToken } from '@/lib/disperse'
 import { getPreferredStablecoin, redirectToDeposit, type StablecoinBalance } from '@/lib/stablecoin'
 import { getAccount } from '@/lib/wallet'
-import { getCachedName, shortenAddress } from '@/lib/socialconnect'
+import { getCachedName, resolveDisplayName } from '@/lib/socialconnect'
 import { DEEPLINKS } from '@/lib/tokens'
 import { ACTIVE_CHAIN } from '@/lib/chains'
 import { usd } from '@/lib/format'
@@ -50,7 +50,10 @@ export default function PayPage() {
       .finally(() => setChecked(true))
   }, [])
 
-  const payeeName = req ? getCachedName(req.to) || req.name || shortenAddress(req.to) : ''
+  // Prefer what we already know locally (contact cache, Recurring list) over
+  // the name embedded in the link itself, which the requester chose and
+  // could be stale or wrong; only fall back to a raw address as a last resort.
+  const payeeName = req ? getCachedName(req.to) || req.name || resolveDisplayName(req.to) : ''
   const enough = token && req ? token.humanBalance >= req.amount : false
 
   function friendlyError(e: unknown): string {

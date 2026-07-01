@@ -4,7 +4,7 @@
 import { formatUnits } from 'viem'
 import { ACTIVE_CHAIN, celoMainnet } from './chains'
 import { TESTNET_STABLECOINS, STABLECOINS } from './tokens'
-import { getCachedName, shortenAddress } from './socialconnect'
+import { resolveDisplayName } from './socialconnect'
 
 // Blockscout REST API base per network (free, no key, good pagination).
 const BLOCKSCOUT_API =
@@ -117,7 +117,7 @@ export async function detectRecurringPayments(
 
     suggestions.push({
       address: recipient as `0x${string}`,
-      name: getCachedName(recipient) ?? shortenAddress(recipient),
+      name: resolveDisplayName(recipient),
       suggestedAmount: Math.round(med * 100) / 100,
       cadence,
       count: txs.length,

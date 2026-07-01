@@ -2,10 +2,9 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import {
-  Receipt, ChevronDown, ChevronUp, ChevronRight, ExternalLink, CheckCircle2, RefreshCw, Link2, Send, Download,
+  Receipt, ChevronDown, ChevronUp, ChevronRight, ExternalLink, CheckCircle2, RefreshCw, Link2, Send, Download, Tag, Check,
 } from 'lucide-react'
 import { BottomNav } from '@/components/BottomNav'
-import { RecipientRow } from '@/components/RecipientRow'
 import { Avatar } from '@/components/Avatar'
 import { SkeletonRow } from '@/components/Skeleton'
 import { type Bundle, type Payment, getBundles, getPayments } from '@/lib/storage'
@@ -15,6 +14,7 @@ import { DEEPLINKS } from '@/lib/tokens'
 import { usd } from '@/lib/format'
 import { ACTIVE_CHAIN } from '@/lib/chains'
 import { downloadHistoryCsv } from '@/lib/exportCsv'
+import { isUnresolvedAddress, cacheName } from '@/lib/socialconnect'
 
 const EXPLORER = ACTIVE_CHAIN.blockExplorers?.default.url ?? 'https://celo-sepolia.blockscout.com'
 
@@ -103,9 +103,9 @@ export default function History() {
         <div className="space-y-3">
           {entries.map((e) =>
             e.kind === 'bundle' ? (
-              <BundleCard key={`b-${e.data.id}`} bundle={e.data} />
+              <BundleCard key={`b-${e.data.id}`} bundle={e.data} onRelabel={sync} />
             ) : (
-              <PaymentCard key={`p-${e.data.id}`} payment={e.data} />
+              <PaymentCard key={`p-${e.data.id}`} payment={e.data} onRelabel={sync} />
             ),
           )}
         </div>
@@ -113,6 +113,63 @@ export default function History() {
 
       <BottomNav />
     </main>
+  )
+}
+
+// An address nobody ever labeled (not in the name cache, not in the local
+// Recurring list) shows a raw shortened address — the "impossible to
+// decipher" gap. This lets the user retroactively name it; the name is
+// cached immediately so every other screen benefits too.
+function LabelableName({
+  address,
+  fallbackName,
+  onLabeled,
+}: {
+  address: string
+  fallbackName: string
+  onLabeled: () => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState('')
+  const unresolved = isUnresolvedAddress(address)
+
+  if (!unresolved) return <>{fallbackName}</>
+
+  if (editing) {
+    return (
+      <span className="inline-flex items-center gap-1">
+        <input
+          autoFocus
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="Name this address"
+          className="bg-surface-sunken rounded px-2 py-0.5 text-caption text-content outline-none w-28"
+          onKeyDown={(e) => e.key === 'Enter' && value.trim() && (cacheName(address, value.trim()), onLabeled())}
+        />
+        <button
+          onClick={() => value.trim() && (cacheName(address, value.trim()), onLabeled())}
+          className="text-brand"
+          aria-label="Save label"
+        >
+          <Check size={14} />
+        </button>
+      </span>
+    )
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1">
+      {fallbackName}
+      <button
+        onClick={(e) => {
+          e.stopPropagation()
+          setEditing(true)
+        }}
+        className="flex items-center gap-0.5 text-micro text-brand"
+      >
+        <Tag size={11} /> Label
+      </button>
+    </span>
   )
 }
 
@@ -124,7 +181,7 @@ function toEntries(bundles: Bundle[], payments: Payment[]): Entry[] {
   return entries.sort((a, b) => Number(b.data.id) - Number(a.data.id) || 0)
 }
 
-function BundleCard({ bundle }: { bundle: Bundle }) {
+function BundleCard({ bundle, onRelabel }: { bundle: Bundle; onRelabel: () => void }) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -146,7 +203,15 @@ function BundleCard({ bundle }: { bundle: Bundle }) {
         <div className="mt-3 pt-1 border-t border-line">
           <div className="divide-y divide-line mb-2">
             {bundle.lines.map((line, i) => (
-              <RecipientRow key={i} name={line.name} address={line.address} amount={line.amount} />
+              <div key={i} className="w-full flex items-center gap-3 py-2.5">
+                <Avatar seed={line.address} label={line.name} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-body font-semibold text-content truncate">
+                    <LabelableName address={line.address} fallbackName={line.name} onLabeled={onRelabel} />
+                  </p>
+                </div>
+                <span className="text-body font-semibold text-content">${usd(line.amount)}</span>
+              </div>
             ))}
           </div>
           <div className="flex gap-2 mt-2">
@@ -171,7 +236,7 @@ function BundleCard({ bundle }: { bundle: Bundle }) {
   )
 }
 
-function PaymentCard({ payment }: { payment: Payment }) {
+function PaymentCard({ payment, onRelabel }: { payment: Payment; onRelabel: () => void }) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -182,7 +247,7 @@ function PaymentCard({ payment }: { payment: Payment }) {
           <div>
             <p className="text-heading text-content">${usd(payment.amount)}</p>
             <p className="text-caption text-content-subtle flex items-center gap-1">
-              <Send size={11} /> Sent to {payment.toName} · {payment.date}
+              <Send size={11} /> Sent to <LabelableName address={payment.to} fallbackName={payment.toName} onLabeled={onRelabel} /> · {payment.date}
             </p>
           </div>
         </div>

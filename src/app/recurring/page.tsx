@@ -18,7 +18,7 @@ import {
   deleteRecurring,
   monthlyEquivalent,
 } from '@/lib/storage'
-import { pickContact } from '@/lib/socialconnect'
+import { pickContact, cacheName } from '@/lib/socialconnect'
 import { isKnownAddress, isUnusualAmount } from '@/lib/addressBook'
 import { getAccount } from '@/lib/wallet'
 import { checkProStatus, getCachedProStatus, FREE_TIER_MAX_RECIPIENTS } from '@/lib/pro'
@@ -137,6 +137,10 @@ export default function RecurringPage() {
       frequency: form.frequency,
       category: form.category,
     }
+    // Whether typed manually or picked from contacts, remember this name
+    // against the address so on-chain history can resolve it later even if
+    // this Recurring entry is edited or deleted — not just at read-time.
+    cacheName(data.address, data.name)
     if (sheet === 'add') {
       setItems((prev) => [...prev, addRecurring(data)])
     } else if (editing) {

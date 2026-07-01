@@ -11,7 +11,7 @@
 import { formatUnits } from 'viem'
 import { ACTIVE_CHAIN, celoMainnet } from './chains'
 import { TESTNET_STABLECOINS, STABLECOINS } from './tokens'
-import { getCachedName, shortenAddress } from './socialconnect'
+import { resolveDisplayName } from './socialconnect'
 import { round2 } from './format'
 import type { Bundle, BundleLine, Payment } from './storage'
 
@@ -83,7 +83,7 @@ export async function fetchOnchainActivity(userAddress: `0x${string}`): Promise<
       const lines: BundleLine[] = txs.map((t) => {
         const decimals = Number(t.tokenDecimal) || 18
         return {
-          name: getCachedName(t.to) ?? shortenAddress(t.to),
+          name: resolveDisplayName(t.to),
           address: t.to,
           amount: round2(Number(formatUnits(BigInt(t.value), decimals))),
         }
@@ -100,7 +100,7 @@ export async function fetchOnchainActivity(userAddress: `0x${string}`): Promise<
         date,
         txHash: hash,
         to: t.to,
-        toName: getCachedName(t.to) ?? shortenAddress(t.to),
+        toName: resolveDisplayName(t.to),
         amount,
       })
     }
