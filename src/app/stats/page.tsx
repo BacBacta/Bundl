@@ -3,7 +3,10 @@
 import { useEffect, useState } from 'react'
 import { getBundles, getStreak } from '@/lib/storage'
 import { fetchContractStats, type ContractStats } from '@/lib/analytics'
-import { DISPERSE_ADDRESS, TOKENS } from '@/lib/tokens'
+import { DISPERSE_ADDRESS, TESTNET_STABLECOINS } from '@/lib/tokens'
+import { ACTIVE_CHAIN, celoMainnet } from '@/lib/chains'
+
+const IS_MAINNET = ACTIVE_CHAIN.id === celoMainnet.id
 
 // Public stats page — no wallet required (MiniPay listing requirement)
 
@@ -84,10 +87,12 @@ export default function StatsPage() {
 
       {/* Contract reference */}
       <div className="border border-line rounded-2xl p-4 mb-4">
-        <p className="text-xs font-semibold text-content-subtle mb-3 uppercase tracking-wide">Contracts (Celo Sepolia)</p>
+        <p className="text-xs font-semibold text-content-subtle mb-3 uppercase tracking-wide">
+          Contracts ({IS_MAINNET ? 'Celo Mainnet' : 'Celo Sepolia'})
+        </p>
         <div className="space-y-2">
           <ContractRow label="Disperse" address={DISPERSE_ADDRESS} />
-          <ContractRow label="MockUSD" address={TOKENS.MOCK_USD.address} />
+          {!IS_MAINNET && <ContractRow label="MockUSD" address={TESTNET_STABLECOINS.MOCK_USD.address} />}
         </div>
       </div>
 
@@ -143,11 +148,12 @@ function StatCard({ label, value }: { label: string; value: string | number }) {
 }
 
 function ContractRow({ label, address }: { label: string; address: string }) {
+  const explorer = ACTIVE_CHAIN.blockExplorers?.default.url ?? 'https://celo-sepolia.blockscout.com'
   return (
     <div>
       <p className="text-xs text-content-subtle">{label}</p>
       <a
-        href={`https://celo-sepolia.blockscout.com/address/${address}`}
+        href={`${explorer}/address/${address}`}
         target="_blank"
         rel="noopener noreferrer"
         className="text-xs text-brand font-mono"

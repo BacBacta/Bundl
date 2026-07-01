@@ -1,6 +1,6 @@
 import { createPublicClient, http, erc20Abi, formatUnits } from 'viem'
 import { ACTIVE_CHAIN } from './chains'
-import { TESTNET_STABLECOINS, DEEPLINKS } from './tokens'
+import { TOKENS, DEEPLINKS } from './tokens'
 
 export interface StablecoinBalance {
   key: string
@@ -20,7 +20,7 @@ const client = createPublicClient({ chain: ACTIVE_CHAIN, transport: http() })
 export async function getAllStablecoinBalances(
   userAddress: `0x${string}`,
 ): Promise<StablecoinBalance[]> {
-  const entries = Object.entries(TESTNET_STABLECOINS).map(([key, token]) => ({ key, ...token }))
+  const entries = Object.entries(TOKENS).map(([key, token]) => ({ key, ...token }))
 
   const results = await Promise.allSettled(
     entries.map(async (token) => {
@@ -52,7 +52,7 @@ export async function getAllStablecoinBalances(
 
 /**
  * Convenience: returns the single stablecoin with the highest balance,
- * or null if the user holds nothing. Used as a testnet default.
+ * or null if the user holds nothing.
  */
 export async function getPreferredStablecoin(
   userAddress: `0x${string}`,

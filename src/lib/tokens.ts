@@ -1,6 +1,10 @@
 // Single source of truth for all token and contract addresses.
 // Never hardcode decimals or addresses anywhere else — import from here.
 
+import { ACTIVE_CHAIN, celoMainnet } from './chains'
+
+const IS_MAINNET = ACTIVE_CHAIN.id === celoMainnet.id
+
 // ─── Disperse contract (deployed by this repo) ───────────────────────────────
 
 export const DISPERSE_ADDRESS = (
@@ -98,11 +102,12 @@ export const TESTNET_STABLECOINS = {
 export type StablecoinKey = keyof typeof STABLECOINS
 export type TestnetStablecoinKey = keyof typeof TESTNET_STABLECOINS
 
-// Active tokens — swap to STABLECOINS for mainnet
-export const TOKENS = TESTNET_STABLECOINS
+// Active tokens — switches automatically with NEXT_PUBLIC_NETWORK (see chains.ts).
+export const TOKENS = IS_MAINNET ? STABLECOINS : TESTNET_STABLECOINS
 
-// Default token for settlement (override per user preference via storage)
-export const DEFAULT_TOKEN = TESTNET_STABLECOINS.MOCK_USD
+// Default token for settlement (override per user preference via storage).
+// Mainnet has no MockUSD equivalent — USDm is the natural default there.
+export const DEFAULT_TOKEN = IS_MAINNET ? STABLECOINS.USDm : TESTNET_STABLECOINS.MOCK_USD
 
 // ─── SocialConnect ────────────────────────────────────────────────────────────
 

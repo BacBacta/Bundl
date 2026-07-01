@@ -18,7 +18,7 @@ import { useState } from 'react'
 import { notFound } from 'next/navigation'
 import { parseUnits } from 'viem'
 import { getTokenDecimals, ensureApproval, disperseToken } from '@/lib/disperse'
-import { TOKENS, isDeployed } from '@/lib/tokens'
+import { TESTNET_STABLECOINS, isDeployed } from '@/lib/tokens'
 import { getAccount, isMiniPay } from '@/lib/wallet'
 
 // Dev-only developer harness — excluded from production builds. Set
@@ -68,7 +68,7 @@ export default function SpikePage() {
       addLog(`Account: ${account ?? 'none'}`, !!account)
       addLog(`MiniPay: ${isMiniPay()}`)
 
-      const token = TOKENS.MOCK_USD
+      const token = TESTNET_STABLECOINS.MOCK_USD
       addLog(`Token: ${token.address}`)
 
       const decimals = await getTokenDecimals(token.address)

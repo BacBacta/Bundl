@@ -24,6 +24,13 @@ const config: HardhatUserConfig = {
       chainId: 42220,
       accounts,
     },
+    // Same chain as `celo`, separate network name so we can verify via
+    // Blockscout (no API key) as a fallback when CELOSCAN_API_KEY isn't set.
+    celoMainnetBlockscout: {
+      url: process.env.CELO_RPC_URL || 'https://forno.celo.org',
+      chainId: 42220,
+      accounts,
+    },
   },
   paths: {
     sources: './contracts',
@@ -36,6 +43,7 @@ const config: HardhatUserConfig = {
     apiKey: {
       celoSepolia: 'blockscout', // Blockscout ignores the key
       celo: process.env.CELOSCAN_API_KEY || '',
+      celoMainnetBlockscout: 'blockscout',
     },
     customChains: [
       {
@@ -52,6 +60,14 @@ const config: HardhatUserConfig = {
         urls: {
           apiURL: 'https://api.celoscan.io/api',
           browserURL: 'https://celoscan.io',
+        },
+      },
+      {
+        network: 'celoMainnetBlockscout',
+        chainId: 42220,
+        urls: {
+          apiURL: 'https://celo.blockscout.com/api',
+          browserURL: 'https://celo.blockscout.com',
         },
       },
     ],
