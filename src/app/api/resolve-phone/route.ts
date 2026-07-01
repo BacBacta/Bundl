@@ -71,11 +71,12 @@ export async function POST(req: Request) {
   }
 
   try {
-    const network = process.env.NEXT_PUBLIC_NETWORK === 'mainnet' ? 'mainnet' : 'alfajores'
-    const context = getServiceContext(
-      network === 'mainnet' ? OdisContextName.MAINNET : OdisContextName.ALFAJORES,
-      OdisAPI.PNP,
-    )
+    // Always mainnet: the SDK's "Alfajores" testnet ODIS combiner
+    // (odis-combiner-alfajores.alfajores.celo-testnet.org) no longer resolves
+    // post Celo's Sepolia migration, and SocialConnect has no Sepolia
+    // deployment to fall back to. This is independent of NEXT_PUBLIC_NETWORK
+    // — ODIS_PRIVATE_KEY's account must hold real mainnet CELO/cUSD quota.
+    const context = getServiceContext(OdisContextName.MAINNET, OdisAPI.PNP)
 
     const key = (odisKey.startsWith('0x') ? odisKey : `0x${odisKey}`) as `0x${string}`
     const account = privateKeyToAccount(key)
