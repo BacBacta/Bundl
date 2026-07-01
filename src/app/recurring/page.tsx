@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { isAddress } from 'viem'
-import { Plus, Trash2, Contact, Repeat, Share2, Check } from 'lucide-react'
+import { Plus, Trash2, Contact, Repeat, Share2, Check, Home, Users, Briefcase, RotateCw, Tag, AlertTriangle } from 'lucide-react'
 import { BottomNav } from '@/components/BottomNav'
 import { RecipientRow } from '@/components/RecipientRow'
 import { usd } from '@/lib/format'
@@ -10,6 +10,8 @@ import { buildShareUrl } from '@/lib/shareBundle'
 import {
   type Recurring,
   type Frequency,
+  type Category,
+  CATEGORIES,
   getRecurring,
   addRecurring,
   updateRecurring,
@@ -17,17 +19,36 @@ import {
   monthlyEquivalent,
 } from '@/lib/storage'
 import { pickContact } from '@/lib/socialconnect'
+import { isKnownAddress, isUnusualAmount } from '@/lib/addressBook'
+import { getAccount } from '@/lib/wallet'
+import { checkProStatus, getCachedProStatus, FREE_TIER_MAX_RECIPIENTS } from '@/lib/pro'
+import Link from 'next/link'
 
-const EMPTY_FORM = { name: '', address: '', amount: '', frequency: 'monthly' as Frequency }
+const EMPTY_FORM = { name: '', address: '', amount: '', frequency: 'monthly' as Frequency, category: 'other' as Category }
 const FREQUENCIES: Frequency[] = ['weekly', 'biweekly', 'monthly']
+
+const CATEGORY_ICONS: Record<Category, typeof Home> = {
+  housing: Home,
+  family: Users,
+  business: Briefcase,
+  subscriptions: RotateCw,
+  other: Tag,
+}
 
 export default function RecurringPage() {
   const [items, setItems] = useState<Recurring[]>([])
-  const [sheet, setSheet] = useState<'closed' | 'add' | 'edit'>('closed')
+  const [sheet, setSheet] = useState<'closed' | 'add' | 'edit' | 'limit'>('closed')
   const [editing, setEditing] = useState<Recurring | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [errors, setErrors] = useState<Partial<typeof EMPTY_FORM>>({})
   const [shared, setShared] = useState(false)
+  const [isPro, setIsPro] = useState(getCachedProStatus())
+
+  useEffect(() => {
+    getAccount().then((addr) => {
+      if (addr) checkProStatus(addr as `0x${string}`).then(setIsPro)
+    })
+  }, [])
 
   async function handleShare() {
     if (items.length === 0) return
@@ -52,7 +73,19 @@ export default function RecurringPage() {
 
   const monthlyTotal = items.reduce((s, r) => s + monthlyEquivalent(r), 0)
 
+  const categoryBreakdown = CATEGORIES.map(({ key, label }) => ({
+    key,
+    label,
+    total: items.filter((r) => (r.category ?? 'other') === key).reduce((s, r) => s + monthlyEquivalent(r), 0),
+  })).filter((c) => c.total > 0)
+
+  const atFreeLimit = !isPro && items.length >= FREE_TIER_MAX_RECIPIENTS
+
   function openAdd() {
+    if (atFreeLimit) {
+      setSheet('limit')
+      return
+    }
     setForm(EMPTY_FORM)
     setErrors({})
     setEditing(null)
@@ -65,6 +98,7 @@ export default function RecurringPage() {
       address: item.address,
       amount: String(item.amount),
       frequency: item.frequency ?? 'monthly',
+      category: item.category ?? 'other',
     })
     setErrors({})
     setEditing(item)
@@ -101,6 +135,7 @@ export default function RecurringPage() {
       address: form.address as `0x${string}`,
       amount: parseFloat(form.amount),
       frequency: form.frequency,
+      category: form.category,
     }
     if (sheet === 'add') {
       setItems((prev) => [...prev, addRecurring(data)])
@@ -178,6 +213,31 @@ export default function RecurringPage() {
             Weekly and biweekly payments are combined into one monthly number — each is still
             paid at its full amount when settled.
           </p>
+
+          {categoryBreakdown.length > 1 && (
+            <div className="bg-surface-raised border border-line rounded-card shadow-card p-4 mt-4">
+              <p className="text-micro text-content-subtle uppercase tracking-wide mb-3">By category</p>
+              <div className="space-y-2.5">
+                {categoryBreakdown.map((c) => {
+                  const Icon = CATEGORY_ICONS[c.key]
+                  const pct = Math.round((c.total / monthlyTotal) * 100)
+                  return (
+                    <div key={c.key}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="flex items-center gap-1.5 text-caption text-content-muted">
+                          <Icon size={13} /> {c.label}
+                        </span>
+                        <span className="text-caption font-semibold text-content">${usd(c.total)}</span>
+                      </div>
+                      <div className="h-1.5 bg-surface-sunken rounded-pill overflow-hidden">
+                        <div className="h-full bg-brand rounded-pill" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </>
       )}
 
@@ -190,6 +250,26 @@ export default function RecurringPage() {
             style={{ paddingBottom: 'calc(2.25rem + env(safe-area-inset-bottom))' }}
           >
             <div className="w-10 h-1 rounded-full bg-line mx-auto" />
+
+            {sheet === 'limit' ? (
+              <>
+                <h2 className="text-title text-content">Free plan limit reached</h2>
+                <p className="text-body text-content-muted">
+                  The free plan supports up to {FREE_TIER_MAX_RECIPIENTS} recurring payments.
+                  Upgrade to Bundl Pro (one-time ${5}) for up to {150}.
+                </p>
+                <Link
+                  href="/settings"
+                  className="block w-full py-4 rounded-card font-semibold text-white bg-brand shadow-ring text-center active:scale-[0.99] transition-transform"
+                >
+                  View Bundl Pro
+                </Link>
+                <button onClick={closeSheet} className="w-full py-3 text-caption text-content-subtle">
+                  Not now
+                </button>
+              </>
+            ) : (
+            <>
             <div className="flex justify-between items-center">
               <h2 className="text-title text-content">
                 {sheet === 'add' ? 'Add payment' : 'Edit payment'}
@@ -218,8 +298,23 @@ export default function RecurringPage() {
             </div>
 
             <Field label="Name" value={form.name} onChange={(v) => setForm((f) => ({ ...f, name: v }))} placeholder="e.g. Rent, Mum, supplier" error={errors.name} />
-            <Field label="Wallet address" value={form.address} onChange={(v) => setForm((f) => ({ ...f, address: v }))} placeholder="0x…" error={errors.address} mono />
-            <Field label="Amount (USD)" value={form.amount} onChange={(v) => setForm((f) => ({ ...f, amount: v }))} placeholder="0" error={errors.amount} inputMode="decimal" />
+            <div>
+              <Field label="Wallet address" value={form.address} onChange={(v) => setForm((f) => ({ ...f, address: v }))} placeholder="0x…" error={errors.address} mono />
+              {isAddress(form.address) && !isKnownAddress(form.address) && (
+                <p className="flex items-center gap-1.5 text-caption text-warning mt-1.5">
+                  <AlertTriangle size={13} className="shrink-0" /> New address — you haven&apos;t paid this before. Double-check it.
+                </p>
+              )}
+            </div>
+            <div>
+              <Field label="Amount (USD)" value={form.amount} onChange={(v) => setForm((f) => ({ ...f, amount: v }))} placeholder="0" error={errors.amount} inputMode="decimal" />
+              {isAddress(form.address) && parseFloat(form.amount) > 0 && isUnusualAmount(form.address, parseFloat(form.amount)).unusual && (
+                <p className="flex items-center gap-1.5 text-caption text-warning mt-1.5">
+                  <AlertTriangle size={13} className="shrink-0" />
+                  Much higher than usual for this address (up to ${usd(isUnusualAmount(form.address, parseFloat(form.amount)).usualMax)} before).
+                </p>
+              )}
+            </div>
 
             <div>
               <label className="text-caption font-medium text-content-muted mb-1 block">Frequency</label>
@@ -239,12 +334,36 @@ export default function RecurringPage() {
               </div>
             </div>
 
+            <div>
+              <label className="text-caption font-medium text-content-muted mb-1 block">Category</label>
+              <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
+                {CATEGORIES.map(({ key, label }) => {
+                  const Icon = CATEGORY_ICONS[key]
+                  const active = form.category === key
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setForm((f) => ({ ...f, category: key }))}
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-pill text-caption font-semibold whitespace-nowrap border transition-colors ${
+                        active ? 'bg-brand text-white border-brand' : 'border-line text-content-muted'
+                      }`}
+                    >
+                      <Icon size={14} /> {label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
             <button
               onClick={handleSave}
               className="w-full py-4 rounded-card font-semibold text-white bg-brand shadow-ring active:scale-[0.99] transition-transform"
             >
               {sheet === 'add' ? 'Add payment' : 'Save changes'}
             </button>
+            </>
+            )}
           </div>
         </div>
       )}

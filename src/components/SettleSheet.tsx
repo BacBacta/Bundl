@@ -2,12 +2,13 @@
 
 import { useState } from 'react'
 import { parseUnits } from 'viem'
-import { Check, ChevronRight, Loader2, ExternalLink, X } from 'lucide-react'
+import { Check, ChevronRight, Loader2, ExternalLink, X, AlertTriangle } from 'lucide-react'
 import { getTokenDecimals, ensureApproval, disperseToken } from '@/lib/disperse'
 import type { StablecoinBalance } from '@/lib/stablecoin'
 import { redirectToDeposit } from '@/lib/stablecoin'
-import { DEEPLINKS, FEE_RECIPIENT, SERVICE_FEE_USD } from '@/lib/tokens'
+import { DEEPLINKS, FEE_RECIPIENT, SERVICE_FEE_USD, feeForVolume } from '@/lib/tokens'
 import type { Recurring, Bundle } from '@/lib/storage'
+import { getSpendLimit, getBundles } from '@/lib/storage'
 import { usd, round2 } from '@/lib/format'
 import { ACTIVE_CHAIN } from '@/lib/chains'
 import { RecipientRow } from './RecipientRow'
@@ -32,7 +33,12 @@ export function SettleSheet({ recurring, token, onSuccess, onClose }: Props) {
   const [submitting, setSubmitting] = useState(false)
 
   const total = round2(recurring.reduce((s, r) => s + r.amount, 0))
-  const grandTotal = round2(total + (FEE_ENABLED ? SERVICE_FEE_USD : 0))
+  const lifetimeVolume = getBundles().reduce((s, b) => s + b.total, 0)
+  const serviceFee = feeForVolume(lifetimeVolume)
+  const discounted = serviceFee < SERVICE_FEE_USD
+  const grandTotal = round2(total + (FEE_ENABLED ? serviceFee : 0))
+  const spendLimit = getSpendLimit()
+  const overLimit = spendLimit != null && grandTotal > spendLimit
 
   function addLog(msg: string) {
     setLog((prev) => [...prev, msg])
@@ -65,7 +71,7 @@ export function SettleSheet({ recurring, token, onSuccess, onClose }: Props) {
 
       if (FEE_ENABLED) {
         allRecipients.push(FEE_RECIPIENT)
-        allAmounts.push(parseUnits(SERVICE_FEE_USD.toString(), decimals))
+        allAmounts.push(parseUnits(serviceFee.toString(), decimals))
       }
 
       const totalAmount = allAmounts.reduce((a, b) => a + b, 0n)
@@ -127,8 +133,13 @@ export function SettleSheet({ recurring, token, onSuccess, onClose }: Props) {
             <div className="px-1 space-y-1.5 mb-4">
               {FEE_ENABLED && (
                 <div className="flex justify-between text-caption text-content-subtle">
-                  <span>Service fee</span>
-                  <span>${usd(SERVICE_FEE_USD)}</span>
+                  <span>
+                    Service fee{discounted && <span className="text-success"> · volume discount</span>}
+                  </span>
+                  <span>
+                    {discounted && <span className="line-through opacity-50 mr-1">${usd(SERVICE_FEE_USD)}</span>}
+                    ${usd(serviceFee)}
+                  </span>
                 </div>
               )}
               <div className="flex justify-between text-heading text-content">
@@ -146,6 +157,13 @@ export function SettleSheet({ recurring, token, onSuccess, onClose }: Props) {
             {token.humanBalance < total && (
               <div className="bg-warning/10 text-warning text-caption rounded-card p-3 mb-4">
                 Insufficient balance — tap below to top up.
+              </div>
+            )}
+
+            {overLimit && (
+              <div className="flex items-start gap-2 bg-warning/10 text-warning text-caption rounded-card p-3 mb-4">
+                <AlertTriangle size={15} className="shrink-0 mt-0.5" />
+                <span>This settlement (${usd(grandTotal)}) is above your ${usd(spendLimit!)} spending limit.</span>
               </div>
             )}
 

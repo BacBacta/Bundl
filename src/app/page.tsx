@@ -21,6 +21,16 @@ import { usd, round2 } from '@/lib/format'
 import { getAllStablecoinBalances, redirectToDeposit, type StablecoinBalance } from '@/lib/stablecoin'
 import { detectRecurringPayments, MOCK_SUGGESTIONS, type DetectedPayment } from '@/lib/activity'
 import { cacheName } from '@/lib/socialconnect'
+import { fetchIncomingTransfers } from '@/lib/onchainHistory'
+import {
+  unreadCount as getUnreadCount,
+  notifyStreakMilestone,
+  notifyGoalReached,
+  notifyBundleSettled,
+  notifyPaymentsReceived,
+  getIncomingCheckpoint,
+  setIncomingCheckpoint,
+} from '@/lib/notifications'
 import {
   type Recurring,
   type Bundle,
@@ -49,6 +59,8 @@ export default function Home() {
   const [tokenLoading, setTokenLoading] = useState(false)
   const [suggestions, setSuggestions] = useState<DetectedPayment[]>([])
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [autoPrompted, setAutoPrompted] = useState(false)
 
   useEffect(() => {
     setShowOnboarding(!hasOnboarded())
@@ -77,7 +89,22 @@ export default function Home() {
       detectRecurringPayments(addr as `0x${string}`).then((found) => {
         setSuggestions(found.length > 0 ? found : demo ? MOCK_SUGGESTIONS : [])
       })
+
+      // Notifications: check for incoming payments since the last visit. On
+      // the very first check ever, seed the checkpoint to now instead of
+      // treating the user's entire prior history as "new".
+      const checkpoint = getIncomingCheckpoint()
+      const checkFrom = checkpoint || Date.now()
+      fetchIncomingTransfers(addr as `0x${string}`, checkFrom).then((incoming) => {
+        if (checkpoint && incoming.length > 0) {
+          notifyPaymentsReceived(incoming.length, incoming.reduce((s, t) => s + t.amount, 0))
+        }
+        setIncomingCheckpoint(Date.now())
+        setUnreadCount(getUnreadCount())
+      })
     })
+
+    setUnreadCount(getUnreadCount())
   }, [])
 
   // Monthly savings target normalises each payment by its frequency…
@@ -87,6 +114,31 @@ export default function Home() {
   const dailyAmount = monthlyTarget > 0 ? Math.max(0.01, round2(monthlyTarget / 30)) : 5
   const potPercent = monthlyTarget > 0 ? Math.min(100, Math.round((potBalance / monthlyTarget) * 100)) : 0
   const potFull = monthlyTarget > 0 && potBalance >= monthlyTarget
+
+  useEffect(() => {
+    if (streak > 0) {
+      notifyStreakMilestone(streak)
+      setUnreadCount(getUnreadCount())
+    }
+  }, [streak])
+
+  useEffect(() => {
+    notifyGoalReached(potFull)
+    setUnreadCount(getUnreadCount())
+    if (!potFull) setAutoPrompted(false)
+  }, [potFull])
+
+  // "Auto-settle": the moment the goal is reached AND the wallet already has
+  // enough balance, proactively open the confirm sheet instead of waiting for
+  // the user to notice and scroll down. This never signs anything — MiniPay
+  // still requires the user's own tap to confirm the transaction; it just
+  // removes the step of finding the button.
+  useEffect(() => {
+    if (potFull && selectedToken && selectedToken.humanBalance >= settleTotal && !settling && !autoPrompted) {
+      setAutoPrompted(true)
+      setSettling(true)
+    }
+  }, [potFull, selectedToken, settleTotal, settling, autoPrompted])
 
   function handleAddToPot() {
     const { balance, streak: newStreak } = addDeposit(dailyAmount)
@@ -99,6 +151,8 @@ export default function Home() {
     addBundle(bundle)
     setPotBalance(0)
     setSettling(false)
+    notifyBundleSettled(bundle.lines.length, bundle.total)
+    setUnreadCount(getUnreadCount())
   }
 
   function handleAddDetected(s: DetectedPayment) {
@@ -120,7 +174,7 @@ export default function Home() {
 
   return (
     <main className="flex flex-col min-h-screen pb-24 px-4 pt-4">
-      <Header account={account} inMiniPay={inMiniPay} />
+      <Header account={account} inMiniPay={inMiniPay} unreadCount={unreadCount} />
 
       {/* Goal hero — the primary thing on this screen, clean fintech style */}
       <section className="mt-1 mb-7 px-1">

@@ -129,3 +129,44 @@ export function mergePayments(local: Payment[], chain: Payment[]): Payment[] {
   }
   return [...byHash.values()].sort((a, b) => Number(b.id) - Number(a.id) || 0)
 }
+
+export interface IncomingTransfer {
+  from: string
+  amount: number
+  txHash: string
+  ms: number
+}
+
+/**
+ * Fetch incoming stablecoin transfers to `userAddress` since `sinceMs` (used
+ * to power the "payment received" notification — see lib/notifications.ts).
+ * Never throws — returns [] on failure.
+ */
+export async function fetchIncomingTransfers(
+  userAddress: `0x${string}`,
+  sinceMs: number,
+): Promise<IncomingTransfer[]> {
+  try {
+    const url = `${BLOCKSCOUT_API}?module=account&action=tokentx&address=${userAddress}&sort=desc`
+    const res = await fetch(url)
+    const json = await res.json()
+    if (json.status !== '1' || !Array.isArray(json.result)) return []
+    const transfers = json.result as RawTransfer[]
+
+    const user = userAddress.toLowerCase()
+    return transfers
+      .filter((t) => t.to?.toLowerCase() === user && STABLE_ADDRESSES.has(t.contractAddress?.toLowerCase()))
+      .map((t) => {
+        const decimals = Number(t.tokenDecimal) || 18
+        return {
+          from: t.from,
+          amount: round2(Number(formatUnits(BigInt(t.value), decimals))),
+          txHash: t.hash,
+          ms: Number(t.timeStamp) * 1000,
+        }
+      })
+      .filter((t) => t.ms > sinceMs)
+  } catch {
+    return []
+  }
+}

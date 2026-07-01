@@ -5,12 +5,23 @@
 
 export type Frequency = 'weekly' | 'biweekly' | 'monthly'
 
+export type Category = 'housing' | 'family' | 'business' | 'subscriptions' | 'other'
+
+export const CATEGORIES: { key: Category; label: string }[] = [
+  { key: 'housing', label: 'Housing' },
+  { key: 'family', label: 'Family' },
+  { key: 'business', label: 'Business' },
+  { key: 'subscriptions', label: 'Subscriptions' },
+  { key: 'other', label: 'Other' },
+]
+
 export interface Recurring {
   id: string
   name: string
   address: `0x${string}`
   amount: number
   frequency?: Frequency // defaults to 'monthly' for entries saved before this field
+  category?: Category // defaults to 'other' for entries saved before this field
 }
 
 // How many times per month each frequency occurs — used to normalise the
@@ -65,6 +76,9 @@ interface Store {
   streak: number
   lastDepositDate: string
   activeToken: 'MOCK_USD' | 'USDC'
+  // Personal, self-set spending limit — a soft warning shown before settling
+  // a bundle above this amount. null = no limit configured.
+  spendLimit: number | null
 }
 
 const KEY = 'bundl_v1'
@@ -91,6 +105,7 @@ function empty(): Store {
     streak: 0,
     lastDepositDate: '',
     activeToken: 'MOCK_USD',
+    spendLimit: null,
   }
 }
 
@@ -179,6 +194,18 @@ export function getSettlementTokenKey(): string {
 export function setSettlementTokenKey(token: string) {
   const store = load()
   store.activeToken = token as Store['activeToken']
+  save(store)
+}
+
+// --- Personal spending limit (soft warning, not enforced on-chain) ---
+
+export function getSpendLimit(): number | null {
+  return load().spendLimit
+}
+
+export function setSpendLimit(limit: number | null) {
+  const store = load()
+  store.spendLimit = limit
   save(store)
 }
 

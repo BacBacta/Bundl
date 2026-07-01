@@ -20,6 +20,20 @@ export const FEE_RECIPIENT = (
 
 export const SERVICE_FEE_USD = 0.15
 
+// Volume-based fee discount — rewards heavier users with a lower per-
+// settlement fee. Computed client-side from the user's local bundle history
+// (an approximation of lifetime volume, same trust boundary as the flat fee
+// above: the app decides the fee amount before building the transaction).
+const FEE_TIERS = [
+  { minVolume: 2000, fee: 0.05 },
+  { minVolume: 500, fee: 0.1 },
+  { minVolume: 0, fee: SERVICE_FEE_USD },
+] as const
+
+export function feeForVolume(lifetimeVolumeUsd: number): number {
+  return FEE_TIERS.find((t) => lifetimeVolumeUsd >= t.minVolume)?.fee ?? SERVICE_FEE_USD
+}
+
 // ─── Stablecoins ─────────────────────────────────────────────────────────────
 // MiniPay supports USDm / USDC / USDT only. Never expose CELO to users.
 // feeCurrency addresses for USDC/USDT are adapter contracts — NOT the token.

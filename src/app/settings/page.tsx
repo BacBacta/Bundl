@@ -1,22 +1,83 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { parseUnits } from 'viem'
 import {
   Download, Upload, Info, ShieldCheck, FileText, Lock, LifeBuoy, BarChart3, ChevronRight, Sparkles,
-  UserPlus, QrCode,
+  UserPlus, QrCode, Bell, BellOff, Crown, Loader2,
 } from 'lucide-react'
-import { exportBackup, importBackup } from '@/lib/storage'
-import { DEEPLINKS } from '@/lib/tokens'
+import { exportBackup, importBackup, getSpendLimit, setSpendLimit } from '@/lib/storage'
+import { DEEPLINKS, FEE_RECIPIENT } from '@/lib/tokens'
 import { BottomNav } from '@/components/BottomNav'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { resetOnboarding } from '@/lib/onboarding'
+import { requestNotificationPermission } from '@/lib/notifications'
+import { getAccount } from '@/lib/wallet'
+import { getPreferredStablecoin } from '@/lib/stablecoin'
+import { getTokenDecimals, transferToken } from '@/lib/disperse'
+import { checkProStatus, getCachedProStatus, PRO_PRICE_USD, FREE_TIER_MAX_RECIPIENTS, PRO_TIER_MAX_RECIPIENTS } from '@/lib/pro'
+
+const PRO_ENABLED = FEE_RECIPIENT !== '0x0000000000000000000000000000000000000000'
 
 export default function SettingsPage() {
   const router = useRouter()
   const [importStatus, setImportStatus] = useState<'idle' | 'ok' | 'error'>('idle')
   const fileRef = useRef<HTMLInputElement>(null)
+  const [notifStatus, setNotifStatus] = useState<'unknown' | 'granted' | 'denied'>(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return 'unknown'
+    return Notification.permission === 'granted' ? 'granted' : Notification.permission === 'denied' ? 'denied' : 'unknown'
+  })
+  const [limitInput, setLimitInput] = useState(() => {
+    const l = typeof window !== 'undefined' ? getSpendLimit() : null
+    return l ? String(l) : ''
+  })
+
+  async function enableNotifications() {
+    const granted = await requestNotificationPermission()
+    setNotifStatus(granted ? 'granted' : 'denied')
+  }
+
+  function saveLimit(v: string) {
+    setLimitInput(v)
+    const n = parseFloat(v)
+    setSpendLimit(isFinite(n) && n > 0 ? n : null)
+  }
+
+  const [isPro, setIsPro] = useState(getCachedProStatus())
+  const [account, setAccount] = useState<string | null>(null)
+  const [upgrading, setUpgrading] = useState(false)
+  const [upgradeError, setUpgradeError] = useState('')
+
+  useEffect(() => {
+    getAccount().then((addr) => {
+      setAccount(addr)
+      if (addr) checkProStatus(addr as `0x${string}`).then(setIsPro)
+    })
+  }, [])
+
+  async function upgradeToPro() {
+    if (!account) return
+    setUpgrading(true)
+    setUpgradeError('')
+    try {
+      const token = await getPreferredStablecoin(account as `0x${string}`)
+      if (!token || token.humanBalance < PRO_PRICE_USD) {
+        setUpgradeError(`You need at least $${PRO_PRICE_USD} in a supported stablecoin to upgrade.`)
+        return
+      }
+      const decimals = await getTokenDecimals(token.address)
+      await transferToken(token.address, FEE_RECIPIENT, parseUnits(PRO_PRICE_USD.toString(), decimals))
+      const confirmed = await checkProStatus(account as `0x${string}`)
+      setIsPro(confirmed)
+      if (!confirmed) setUpgradeError('Payment sent — it can take a moment to confirm. Refresh in a bit.')
+    } catch (e) {
+      setUpgradeError(e instanceof Error && /reject|denied|cancel/i.test(e.message) ? 'Cancelled.' : 'Upgrade failed. Please try again.')
+    } finally {
+      setUpgrading(false)
+    }
+  }
 
   function replayIntro() {
     resetOnboarding()
@@ -54,6 +115,75 @@ export default function SettingsPage() {
       <Card title="Appearance">
         <ThemeToggle />
       </Card>
+
+      {/* Notifications */}
+      <Card title="Notifications">
+        <p className="text-caption text-content-subtle mb-3">
+          Streak milestones, goal reached, and payments received always show up in the bell
+          icon. Turn on device alerts to also get them while Bundl is open in the background.
+        </p>
+        {notifStatus === 'granted' ? (
+          <p className="flex items-center gap-1.5 text-caption text-success">
+            <Bell size={14} /> Device alerts enabled
+          </p>
+        ) : notifStatus === 'denied' ? (
+          <p className="flex items-center gap-1.5 text-caption text-content-subtle">
+            <BellOff size={14} /> Blocked — enable in your browser/MiniPay settings
+          </p>
+        ) : (
+          <button
+            onClick={enableNotifications}
+            className="w-full py-3 rounded-card bg-brand text-white text-body font-semibold flex items-center justify-center gap-2 shadow-ring active:scale-[0.99] transition-transform"
+          >
+            <Bell size={17} /> Enable device alerts
+          </button>
+        )}
+      </Card>
+
+      {/* Spending limit */}
+      <Card title="Spending limit">
+        <p className="text-caption text-content-subtle mb-3">
+          Get a warning before settling a bundle above this amount. This is a personal reminder —
+          it doesn't block anything on-chain.
+        </p>
+        <div className="relative">
+          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-body text-content-subtle">$</span>
+          <input
+            value={limitInput}
+            onChange={(e) => saveLimit(e.target.value)}
+            placeholder="No limit set"
+            inputMode="decimal"
+            className="w-full bg-surface-sunken rounded-card pl-7 pr-4 py-3 text-body text-content outline-none focus:ring-2 focus:ring-brand/40 transition-shadow"
+          />
+        </div>
+      </Card>
+
+      {/* Bundl Pro */}
+      {PRO_ENABLED && (
+        <Card title="Bundl Pro">
+          {isPro ? (
+            <p className="flex items-center gap-1.5 text-caption text-success">
+              <Crown size={14} /> Pro unlocked — up to {PRO_TIER_MAX_RECIPIENTS} recurring payments.
+            </p>
+          ) : (
+            <>
+              <p className="text-caption text-content-subtle mb-3">
+                Free plan: up to {FREE_TIER_MAX_RECIPIENTS} recurring payments. Upgrade once for
+                ${PRO_PRICE_USD} to unlock up to {PRO_TIER_MAX_RECIPIENTS} — verified on-chain, no subscription.
+              </p>
+              <button
+                onClick={upgradeToPro}
+                disabled={upgrading || !account}
+                className="w-full py-3 rounded-card bg-brand text-white text-body font-semibold flex items-center justify-center gap-2 shadow-ring disabled:opacity-60 active:scale-[0.99] transition-transform"
+              >
+                {upgrading ? <Loader2 size={16} className="animate-spin" /> : <Crown size={16} />}
+                {upgrading ? 'Confirming…' : `Upgrade — $${PRO_PRICE_USD} one-time`}
+              </button>
+              {upgradeError && <p className="text-caption text-warning mt-2">{upgradeError}</p>}
+            </>
+          )}
+        </Card>
+      )}
 
       {/* Share */}
       <div className="bg-surface-raised border border-line rounded-card shadow-card divide-y divide-line mb-4">

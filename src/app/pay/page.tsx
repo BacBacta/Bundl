@@ -14,6 +14,7 @@ import { DEEPLINKS } from '@/lib/tokens'
 import { ACTIVE_CHAIN } from '@/lib/chains'
 import { usd } from '@/lib/format'
 import { addPayment, addRecurring, getRecurring } from '@/lib/storage'
+import { notifyPaymentSent } from '@/lib/notifications'
 
 const EXPLORER = ACTIVE_CHAIN.blockExplorers?.default.url ?? 'https://celo-sepolia.blockscout.com'
 type State = 'loading' | 'invalid' | 'ready' | 'paying' | 'done' | 'error'
@@ -82,6 +83,7 @@ export default function PayPage() {
       setAlreadyRecurring(
         getRecurring().some((r) => r.address.toLowerCase() === req.to.toLowerCase()),
       )
+      notifyPaymentSent(payeeName, req.amount)
       setState('done')
     } catch (e) {
       setErrorMsg(friendlyError(e))

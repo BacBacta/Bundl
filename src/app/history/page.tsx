@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import {
-  Receipt, ChevronDown, ChevronUp, ChevronRight, ExternalLink, CheckCircle2, RefreshCw, Link2, Send,
+  Receipt, ChevronDown, ChevronUp, ChevronRight, ExternalLink, CheckCircle2, RefreshCw, Link2, Send, Download,
 } from 'lucide-react'
 import { BottomNav } from '@/components/BottomNav'
 import { RecipientRow } from '@/components/RecipientRow'
@@ -14,6 +14,7 @@ import { getAccount } from '@/lib/wallet'
 import { DEEPLINKS } from '@/lib/tokens'
 import { usd } from '@/lib/format'
 import { ACTIVE_CHAIN } from '@/lib/chains'
+import { downloadHistoryCsv } from '@/lib/exportCsv'
 
 const EXPLORER = ACTIVE_CHAIN.blockExplorers?.default.url ?? 'https://celo-sepolia.blockscout.com'
 
@@ -22,6 +23,8 @@ type Entry = { kind: 'bundle'; data: Bundle } | { kind: 'payment'; data: Payment
 
 export default function History() {
   const [entries, setEntries] = useState<Entry[]>([])
+  const [bundles, setBundles] = useState<Bundle[]>([])
+  const [payments, setPayments] = useState<Payment[]>([])
   const [syncing, setSyncing] = useState(false)
   const [synced, setSynced] = useState(false)
 
@@ -29,6 +32,8 @@ export default function History() {
     // Local cache shows instantly; the chain is the source of truth.
     const localBundles = getBundles()
     const localPayments = getPayments()
+    setBundles(localBundles)
+    setPayments(localPayments)
     setEntries(toEntries(localBundles, localPayments))
 
     const addr = await getAccount()
@@ -36,9 +41,11 @@ export default function History() {
     setSyncing(true)
     try {
       const chain = await fetchOnchainActivity(addr as `0x${string}`)
-      const bundles = mergeBundles(localBundles, chain.bundles)
-      const payments = mergePayments(localPayments, chain.payments)
-      setEntries(toEntries(bundles, payments))
+      const mergedBundles = mergeBundles(localBundles, chain.bundles)
+      const mergedPayments = mergePayments(localPayments, chain.payments)
+      setBundles(mergedBundles)
+      setPayments(mergedPayments)
+      setEntries(toEntries(mergedBundles, mergedPayments))
       setSynced(true)
     } finally {
       setSyncing(false)
@@ -53,14 +60,24 @@ export default function History() {
     <main className="flex flex-col min-h-screen pb-24 px-4 pt-6">
       <div className="flex items-center justify-between mb-5">
         <h1 className="text-title text-content">History</h1>
-        <button
-          onClick={sync}
-          disabled={syncing}
-          className="flex items-center gap-1.5 text-caption text-content-subtle active:opacity-60 disabled:opacity-40"
-        >
-          <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
-          {syncing ? 'Syncing' : 'Refresh'}
-        </button>
+        <div className="flex items-center gap-3">
+          {entries.length > 0 && (
+            <button
+              onClick={() => downloadHistoryCsv(bundles, payments)}
+              className="flex items-center gap-1.5 text-caption text-content-subtle active:opacity-60"
+            >
+              <Download size={14} /> CSV
+            </button>
+          )}
+          <button
+            onClick={sync}
+            disabled={syncing}
+            className="flex items-center gap-1.5 text-caption text-content-subtle active:opacity-60 disabled:opacity-40"
+          >
+            <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
+            {syncing ? 'Syncing' : 'Refresh'}
+          </button>
+        </div>
       </div>
 
       {synced && entries.length > 0 && (
