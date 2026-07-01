@@ -102,6 +102,8 @@ export const DEEPLINKS = {
   inviteFriends: 'https://link.minipay.xyz/invite_friends',
   qr: 'https://link.minipay.xyz/qr',
   discover: 'https://link.minipay.xyz/discover',
+  // Open a URL inside MiniPay's in-app browser (so the wallet is available).
+  browse: (url: string) => `https://link.minipay.xyz/browse?url=${encodeURIComponent(url)}`,
 } as const
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

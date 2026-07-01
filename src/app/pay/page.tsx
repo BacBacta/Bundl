@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { parseUnits } from 'viem'
-import { Check, X, Loader2, ChevronRight, ExternalLink } from 'lucide-react'
+import { Check, X, Loader2, ChevronRight, ExternalLink, Smartphone } from 'lucide-react'
 import { Avatar } from '@/components/Avatar'
 import { decodeRequest, type PaymentRequest } from '@/lib/paymentRequest'
 import { getTokenDecimals, transferToken } from '@/lib/disperse'
@@ -22,10 +22,14 @@ export default function PayPage() {
   const [state, setState] = useState<State>('loading')
   const [req, setReq] = useState<PaymentRequest | null>(null)
   const [token, setToken] = useState<StablecoinBalance | null>(null)
+  const [account, setAccount] = useState<string | null>(null)
+  const [checked, setChecked] = useState(false) // finished probing wallet + balance
+  const [payUrl, setPayUrl] = useState('')
   const [txHash, setTxHash] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
 
   useEffect(() => {
+    setPayUrl(window.location.href)
     const code = new URLSearchParams(window.location.search).get('r')
     const decoded = code ? decodeRequest(code) : null
     if (!decoded) {
@@ -34,9 +38,12 @@ export default function PayPage() {
     }
     setReq(decoded)
     setState('ready')
-    getAccount().then((addr) => {
-      if (addr) getPreferredStablecoin(addr as `0x${string}`).then(setToken)
-    })
+    getAccount()
+      .then(async (addr) => {
+        setAccount(addr)
+        if (addr) setToken(await getPreferredStablecoin(addr as `0x${string}`))
+      })
+      .finally(() => setChecked(true))
   }, [])
 
   const payeeName = req ? getCachedName(req.to) || req.name || shortenAddress(req.to) : ''
@@ -51,8 +58,8 @@ export default function PayPage() {
   }
 
   async function pay() {
-    if (!req || !token) return
-    if (!enough) {
+    if (!req) return
+    if (!token || !enough) {
       redirectToDeposit()
       return
     }
@@ -91,28 +98,38 @@ export default function PayPage() {
                 Paying with {token.symbol} · balance ${usd(token.humanBalance)}
               </p>
             )}
-            {token && !enough && (
-              <p className="text-caption text-warning bg-warning/10 rounded-card p-3 mt-3">
-                Not enough {token.symbol}. Tap below to add funds.
+            {checked && !account && (
+              <p className="text-caption text-content-subtle mt-6 max-w-[280px]">
+                Open this request inside MiniPay to pay in one tap.
               </p>
             )}
           </div>
 
-          <button
-            onClick={pay}
-            disabled={state === 'paying' || !token}
-            className="w-full py-4 rounded-card font-semibold text-white bg-brand shadow-ring disabled:opacity-60 active:scale-[0.99] transition-transform flex items-center justify-center gap-2"
-          >
-            {state === 'paying' ? (
-              <><Loader2 size={18} className="animate-spin" /> Paying…</>
-            ) : !token ? (
-              'Connecting wallet…'
-            ) : enough ? (
-              `Pay $${usd(req.amount)}`
-            ) : (
-              'Add funds to pay'
-            )}
-          </button>
+          {/* No wallet (opened in a normal browser) → open in MiniPay */}
+          {checked && !account ? (
+            <a
+              href={DEEPLINKS.browse(payUrl)}
+              className="w-full py-4 rounded-card font-semibold text-white bg-brand shadow-ring active:scale-[0.99] transition-transform flex items-center justify-center gap-2"
+            >
+              <Smartphone size={18} /> Open in MiniPay to pay
+            </a>
+          ) : (
+            <button
+              onClick={pay}
+              disabled={state === 'paying' || !checked}
+              className="w-full py-4 rounded-card font-semibold text-white bg-brand shadow-ring disabled:opacity-60 active:scale-[0.99] transition-transform flex items-center justify-center gap-2"
+            >
+              {state === 'paying' ? (
+                <><Loader2 size={18} className="animate-spin" /> Paying…</>
+              ) : !checked ? (
+                'Connecting wallet…'
+              ) : enough ? (
+                `Pay $${usd(req.amount)}`
+              ) : (
+                'Add funds to pay'
+              )}
+            </button>
+          )}
           <button onClick={() => router.push('/')} className="w-full py-3 text-caption text-content-subtle mt-1">
             Not now
           </button>
