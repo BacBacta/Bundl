@@ -29,6 +29,7 @@ export const celoMainnet = defineChain({
       http: [
         process.env.NEXT_PUBLIC_CELO_RPC_URL || 'https://forno.celo.org',
         'https://celo.drpc.org',
+        'https://celo-rpc.publicnode.com',
       ],
     },
   },

@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run compile
+      - run: npm run test
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_NETWORK: mainnet
+          NEXT_PUBLIC_DISPERSE_ADDRESS: '0xEe33743c0344E58420E4b6BBBaB2c10e9410f6D5'
