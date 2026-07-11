@@ -54,20 +54,40 @@ export default function StatsPage() {
           ))}
         </div>
       ) : chain && chain.deployed ? (
-        <>
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            <Metric label="Settlements" value={chain.settlements} />
-            <Metric label="Unique users" value={chain.uniqueUsers} />
-            <Metric label="Settled (7d)" value={chain.last7d} />
-            <Metric label="Settled (30d)" value={chain.last30d} />
-            <Metric label="Network fees" value={`${chain.networkFees.toFixed(4)}`} hint="native" />
-            <Metric label="Failed-tx rate" value={`${(chain.failedRate * 100).toFixed(1)}%`} />
+        chain.settlements === 0 ? (
+          <div className="border border-line rounded-2xl p-4 mb-6 text-sm text-content-muted">
+            Freshly deployed — live metrics appear after the first settlements.
           </div>
-          <p className="text-xs text-content-subtle mb-6">
-            Live from Blockscout. Volume per stablecoin + USD-converted fees need an indexer
-            (Goldsky / Dune) — see below.
-          </p>
-        </>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <Metric label="Settlements" value={chain.settlements} />
+              <Metric label="Unique users" value={chain.uniqueUsers} />
+              <Metric label="Settled (7d)" value={chain.last7d} />
+              <Metric label="Settled (30d)" value={chain.last30d} />
+              {chain.networkFees > 0 && (
+                <Metric label="Network fees" value={`${chain.networkFees.toFixed(4)}`} hint="CELO" />
+              )}
+              <Metric label="Failed-tx rate" value={`${(chain.failedRate * 100).toFixed(1)}%`} />
+              {chain.revenue > 0 && <Metric label="Service revenue" value={`$${chain.revenue.toFixed(2)}`} />}
+            </div>
+            {Object.keys(chain.volumeByToken).length > 0 && (
+              <div className="border border-line rounded-2xl p-4 mb-6">
+                <p className="text-xs font-semibold text-content-subtle mb-2 uppercase tracking-wide">
+                  Volume per stablecoin
+                </p>
+                <div className="space-y-1.5">
+                  {Object.entries(chain.volumeByToken).map(([symbol, vol]) => (
+                    <div key={symbol} className="flex justify-between text-sm">
+                      <span className="text-content-muted">{symbol}</span>
+                      <span className="font-semibold">${vol.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )
       ) : (
         <div className="bg-warning/10 text-warning text-xs rounded-xl p-3 mb-6">
           Contract not deployed on this network yet — on-chain metrics will populate after the
@@ -96,21 +116,15 @@ export default function StatsPage() {
         </div>
       </div>
 
-      {/* Required metrics legend */}
+      {/* Roadmap — extended analytics land with the indexer integration */}
       <div className="border border-line rounded-2xl p-4">
         <p className="text-xs font-semibold text-content-subtle mb-3 uppercase tracking-wide">
-          Required for MiniPay listing
+          Coming soon
         </p>
         <ul className="text-xs text-content-subtle space-y-1.5">
           {[
-            'DAU / MAU',
-            'D1 / D7 / D30 retention',
-            'Tx count by method (day / week / month)',
-            'Unique on-chain users',
-            'Volume per stablecoin (USDm / USDC / USDT)',
-            'Network fees paid (sum gasUsed × gasPrice)',
-            'Service revenue (FeeCollected events)',
-            'Failed-tx rate',
+            'Daily & monthly active users',
+            'Cohort retention (D1 / D7 / D30)',
           ].map((m) => (
             <li key={m} className="flex gap-2">
               <span className="text-content-subtle">—</span>
@@ -118,9 +132,6 @@ export default function StatsPage() {
             </li>
           ))}
         </ul>
-        <p className="text-xs text-content-subtle mt-3">
-          Integrate Goldsky / Dune / The Graph for production indexing.
-        </p>
       </div>
     </main>
   )

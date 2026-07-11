@@ -11,10 +11,14 @@ import { ReminderBanner } from '@/components/ReminderBanner'
 import { DetectedPayments } from '@/components/DetectedPayments'
 import { hasOnboarded } from '@/lib/onboarding'
 import { SkeletonRow } from '@/components/Skeleton'
+import { CountUp } from '@/components/CountUp'
 
 // Lazy — pulls the animation lib only when the intro actually shows.
 const Onboarding = dynamic(() => import('@/components/Onboarding').then((m) => m.Onboarding), {
   ssr: false,
+  // Full-surface placeholder: on slow connections the home screen must not
+  // flash underneath before the intro takes over.
+  loading: () => <div className="fixed inset-0 z-50 bg-surface" />,
 })
 import { getAccount, isMiniPay } from '@/lib/wallet'
 import { usd, round2 } from '@/lib/format'
@@ -108,9 +112,9 @@ export default function Home() {
   }, [])
 
   // Monthly savings target normalises each payment by its frequency…
-  const monthlyTarget = round2(recurring.reduce((s, r) => s + monthlyEquivalent(r), 0))
+  const monthlyTarget = round2(recurring.reduce((s, r) => s + round2(monthlyEquivalent(r)), 0))
   // …while a settlement pays each recipient their face amount once.
-  const settleTotal = round2(recurring.reduce((s, r) => s + r.amount, 0))
+  const settleTotal = round2(recurring.reduce((s, r) => s + round2(r.amount), 0))
   const dailyAmount = monthlyTarget > 0 ? Math.max(0.01, round2(monthlyTarget / 30)) : 5
   const potPercent = monthlyTarget > 0 ? Math.min(100, Math.round((potBalance / monthlyTarget) * 100)) : 0
   const potFull = monthlyTarget > 0 && potBalance >= monthlyTarget
@@ -179,7 +183,14 @@ export default function Home() {
       {/* Goal hero — the primary thing on this screen, clean fintech style */}
       <section className="mt-1 mb-7 px-1">
         <div className="flex items-center justify-between mb-2">
-          <p className="text-caption text-content-muted font-medium">Savings goal</p>
+          <p className="flex items-center gap-1.5 text-caption text-content-muted font-medium">
+            Savings goal
+            {selectedToken && (
+              <span className="text-micro font-semibold text-content-subtle bg-surface-sunken rounded-pill px-2 py-0.5">
+                {selectedToken.symbol}
+              </span>
+            )}
+          </p>
           {streak > 0 && (
             <span className="inline-flex items-center gap-1 bg-brand/10 text-brand rounded-pill px-2.5 py-1 text-micro font-semibold">
               <Flame size={12} /> {streak} day{streak > 1 ? 's' : ''}
@@ -188,7 +199,7 @@ export default function Home() {
         </div>
 
         <div className="flex items-baseline gap-2">
-          <p className="text-hero text-content">${usd(potBalance)}</p>
+          <p className="text-hero text-content"><CountUp value={potBalance} /></p>
           {monthlyTarget > 0 && (
             <p className="text-heading text-content-subtle font-normal">/ ${usd(monthlyTarget)}</p>
           )}

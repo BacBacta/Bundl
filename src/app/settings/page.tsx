@@ -6,9 +6,11 @@ import { useRouter } from 'next/navigation'
 import { parseUnits } from 'viem'
 import {
   Download, Upload, Info, ShieldCheck, FileText, Lock, LifeBuoy, BarChart3, ChevronRight, Sparkles,
-  UserPlus, QrCode, Bell, BellOff, Crown, Loader2,
+  UserPlus, QrCode, Bell, BellOff, Crown, Loader2, Link2,
 } from 'lucide-react'
-import { exportBackup, importBackup, getSpendLimit, setSpendLimit } from '@/lib/storage'
+import { isAddress } from 'viem'
+import { exportBackup, importBackup, getSpendLimit, setSpendLimit, getRecurring, saveRecurring } from '@/lib/storage'
+import { fetchOnchainActivity } from '@/lib/onchainHistory'
 import { DEEPLINKS, FEE_RECIPIENT } from '@/lib/tokens'
 import { BottomNav } from '@/components/BottomNav'
 import { ThemeToggle } from '@/components/ThemeToggle'
@@ -84,6 +86,46 @@ export default function SettingsPage() {
     router.push('/?intro=1')
   }
 
+  const [restoring, setRestoring] = useState(false)
+  const [restoreMsg, setRestoreMsg] = useState('')
+
+  // Cache-clear recovery without a backup file: the last settled bundle on
+  // the blockchain IS the user's recurring list — rebuild it from there.
+  async function restoreFromChain() {
+    if (!account) return
+    setRestoring(true)
+    setRestoreMsg('')
+    try {
+      const { bundles } = await fetchOnchainActivity(account as `0x${string}`)
+      const latest = bundles[0]
+      if (!latest || latest.lines.length === 0) {
+        setRestoreMsg('No settled bundles found on-chain for this wallet.')
+        return
+      }
+      const existing = new Set(getRecurring().map((r) => r.address.toLowerCase()))
+      const restored = latest.lines
+        .filter((l) => isAddress(l.address) && !existing.has(l.address.toLowerCase()))
+        .map((l, i) => ({
+          id: `${Date.now() + i}`,
+          name: l.name,
+          address: l.address as `0x${string}`,
+          amount: l.amount,
+          frequency: 'monthly' as const,
+        }))
+      if (restored.length === 0) {
+        setRestoreMsg('Your list already matches your last settlement.')
+        return
+      }
+      saveRecurring([...getRecurring(), ...restored])
+      setRestoreMsg(`Restored ${restored.length} recurring payment${restored.length > 1 ? 's' : ''} · reloading…`)
+      setTimeout(() => window.location.reload(), 900)
+    } catch {
+      setRestoreMsg('Could not reach the blockchain. Try again in a moment.')
+    } finally {
+      setRestoring(false)
+    }
+  }
+
   function handleExport() {
     const json = exportBackup()
     const blob = new Blob([json], { type: 'application/json' })
@@ -119,8 +161,7 @@ export default function SettingsPage() {
       {/* Notifications */}
       <Card title="Notifications">
         <p className="text-caption text-content-subtle mb-3">
-          Streak milestones, goal reached, and payments received always show up in the bell
-          icon. Turn on device alerts to also get them while Bundl is open in the background.
+          Streaks, goals and incoming payments — in the bell, and on your device if you allow it.
         </p>
         {notifStatus === 'granted' ? (
           <p className="flex items-center gap-1.5 text-caption text-success">
@@ -143,8 +184,7 @@ export default function SettingsPage() {
       {/* Spending limit */}
       <Card title="Spending limit">
         <p className="text-caption text-content-subtle mb-3">
-          Get a warning before settling a bundle above this amount. This is a personal reminder —
-          it doesn't block anything on-chain.
+          A personal warning before settling above this amount — nothing is blocked on-chain.
         </p>
         <div className="relative">
           <span className="absolute left-4 top-1/2 -translate-y-1/2 text-body text-content-subtle">$</span>
@@ -208,7 +248,7 @@ export default function SettingsPage() {
       {/* Backup */}
       <Card title="Backup & restore">
         <p className="text-caption text-content-subtle mb-3">
-          Export your recurring list, goal, and streak to a JSON file. Import to restore.
+          Export everything to a file, or rebuild your list from your last on-chain settlement.
         </p>
         <button
           onClick={handleExport}
@@ -218,13 +258,22 @@ export default function SettingsPage() {
         </button>
         <button
           onClick={() => fileRef.current?.click()}
-          className="w-full py-3 rounded-card border border-line text-content text-body font-semibold flex items-center justify-center gap-2 active:bg-surface-sunken"
+          className="w-full py-3 mb-2 rounded-card border border-line text-content text-body font-semibold flex items-center justify-center gap-2 active:bg-surface-sunken"
         >
           <Upload size={17} /> Import backup
+        </button>
+        <button
+          onClick={restoreFromChain}
+          disabled={restoring || !account}
+          className="w-full py-3 rounded-card border border-line text-content text-body font-semibold flex items-center justify-center gap-2 active:bg-surface-sunken disabled:opacity-50"
+        >
+          {restoring ? <Loader2 size={16} className="animate-spin" /> : <Link2 size={16} />}
+          {restoring ? 'Reading the blockchain…' : 'Restore from blockchain'}
         </button>
         <input ref={fileRef} type="file" accept=".json,application/json" className="hidden" onChange={handleImport} />
         {importStatus === 'ok' && <p className="text-caption text-success text-center mt-2">Restored · reloading…</p>}
         {importStatus === 'error' && <p className="text-caption text-danger text-center mt-2">Invalid backup file</p>}
+        {restoreMsg && <p className="text-caption text-content-muted text-center mt-2">{restoreMsg}</p>}
       </Card>
 
       {/* How the goal works */}

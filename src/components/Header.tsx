@@ -41,7 +41,7 @@ export function Header({ account, inMiniPay, unreadCount = 0 }: Props) {
       {/* Identity (handle only, never raw address) + actions */}
       <div className="flex items-center gap-2.5">
         {!account && !inMiniPay && (
-          <span className="text-micro text-warning bg-warning/10 rounded-pill px-2 py-1">
+          <span className="text-micro text-content-subtle bg-surface-sunken rounded-pill px-2.5 py-1">
             Open in MiniPay
           </span>
         )}

@@ -30,11 +30,18 @@ html, body {
   background: rgb(var(--surface));
   color: rgb(var(--text));
   -webkit-tap-highlight-color: transparent;
+  /* Money app: digits align in columns and don't shift as values change. */
+  font-variant-numeric: tabular-nums;
 }
 
 body {
   overscroll-behavior-y: contain;
   padding-top: env(safe-area-inset-top);
+}
+
+/* Soft page transition — tab switches fade instead of hard-cutting. */
+main {
+  animation: fade-in 0.22s ease-out;
 }
 
 /* Skeleton shimmer */

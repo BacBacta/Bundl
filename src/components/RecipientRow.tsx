@@ -23,9 +23,10 @@ export function RecipientRow({ name, address, amount, cadence, onClick, trailing
       <Avatar seed={address} label={name} />
       <div className="min-w-0 flex-1">
         <p className="text-body font-semibold text-content truncate">{name}</p>
+        {/* Names over addresses (MiniPay UI rule) — the raw address only
+            appears when there is nothing friendlier to show. */}
         <p className="text-caption text-content-subtle truncate">
-          {shortenAddress(address)}
-          {cadence ? ` · ${cadence}` : ''}
+          {cadence ?? shortenAddress(address)}
         </p>
       </div>
       {trailing ?? (

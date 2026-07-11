@@ -11,7 +11,7 @@ import { type Bundle, type Payment, getBundles, getPayments } from '@/lib/storag
 import { fetchOnchainActivity, mergeBundles, mergePayments } from '@/lib/onchainHistory'
 import { getAccount } from '@/lib/wallet'
 import { DEEPLINKS } from '@/lib/tokens'
-import { usd } from '@/lib/format'
+import { usd, humanDate, monthLabel } from '@/lib/format'
 import { ACTIVE_CHAIN } from '@/lib/chains'
 import { downloadHistoryCsv } from '@/lib/exportCsv'
 import { isUnresolvedAddress, cacheName } from '@/lib/socialconnect'
@@ -21,12 +21,15 @@ const EXPLORER = ACTIVE_CHAIN.blockExplorers?.default.url ?? 'https://celo-sepol
 // A unified, sortable timeline entry — a settlement or a single payment.
 type Entry = { kind: 'bundle'; data: Bundle } | { kind: 'payment'; data: Payment }
 
+const PAGE_SIZE = 30
+
 export default function History() {
   const [entries, setEntries] = useState<Entry[]>([])
   const [bundles, setBundles] = useState<Bundle[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
   const [syncing, setSyncing] = useState(false)
   const [synced, setSynced] = useState(false)
+  const [visible, setVisible] = useState(PAGE_SIZE)
 
   const sync = useCallback(async () => {
     // Local cache shows instantly; the chain is the source of truth.
@@ -101,12 +104,33 @@ export default function History() {
         </div>
       ) : (
         <div className="space-y-3">
-          {entries.map((e) =>
-            e.kind === 'bundle' ? (
-              <BundleCard key={`b-${e.data.id}`} bundle={e.data} onRelabel={sync} />
+          {entries.slice(0, visible).map((e, i) => {
+            const month = monthLabel(Number(e.data.id))
+            const prevMonth = i > 0 ? monthLabel(Number(entries[i - 1].data.id)) : null
+            const card =
+              e.kind === 'bundle' ? (
+                <BundleCard key={`b-${e.data.id}`} bundle={e.data} onRelabel={sync} />
+              ) : (
+                <PaymentCard key={`p-${e.data.id}`} payment={e.data} onRelabel={sync} />
+              )
+            return month && month !== prevMonth ? (
+              <div key={`g-${e.kind}-${e.data.id}`} className="space-y-3">
+                <p className="text-micro font-semibold uppercase tracking-wide text-content-subtle pt-2 px-1">
+                  {month}
+                </p>
+                {card}
+              </div>
             ) : (
-              <PaymentCard key={`p-${e.data.id}`} payment={e.data} onRelabel={sync} />
-            ),
+              card
+            )
+          })}
+          {entries.length > visible && (
+            <button
+              onClick={() => setVisible((v) => v + PAGE_SIZE)}
+              className="w-full py-3 rounded-card border border-line text-caption font-medium text-content-muted active:bg-surface-sunken"
+            >
+              Show {Math.min(PAGE_SIZE, entries.length - visible)} more
+            </button>
           )}
         </div>
       )}
@@ -193,7 +217,9 @@ function BundleCard({ bundle, onRelabel }: { bundle: Bundle; onRelabel: () => vo
           </div>
           <div>
             <p className="text-heading text-content">${usd(bundle.total)}</p>
-            <p className="text-caption text-content-subtle">{bundle.date} · {bundle.lines.length} recipients</p>
+            <p className="text-caption text-content-subtle">
+              {humanDate(bundle.date)} · {bundle.lines.length} recipient{bundle.lines.length !== 1 ? 's' : ''}
+            </p>
           </div>
         </div>
         {open ? <ChevronUp size={18} className="text-content-subtle" /> : <ChevronDown size={18} className="text-content-subtle" />}
@@ -247,7 +273,7 @@ function PaymentCard({ payment, onRelabel }: { payment: Payment; onRelabel: () =
           <div>
             <p className="text-heading text-content">${usd(payment.amount)}</p>
             <p className="text-caption text-content-subtle flex items-center gap-1">
-              <Send size={11} /> Sent to <LabelableName address={payment.to} fallbackName={payment.toName} onLabeled={onRelabel} /> · {payment.date}
+              <Send size={11} /> Sent to <LabelableName address={payment.to} fallbackName={payment.toName} onLabeled={onRelabel} /> · {humanDate(payment.date)}
             </p>
           </div>
         </div>
