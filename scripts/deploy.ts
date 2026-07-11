@@ -4,6 +4,13 @@ async function main() {
   const [deployer] = await ethers.getSigners()
   console.log('Deploying from:', deployer.address)
 
+  // Testnet-only script: MockUSD has an unrestricted public mint and must
+  // never reach mainnet (a mispointed RPC URL would otherwise deploy it there).
+  const network = await ethers.provider.getNetwork()
+  if (network.chainId !== 11142220n) {
+    throw new Error(`Expected Celo Sepolia (11142220), got chain ${network.chainId}. Aborting.`)
+  }
+
   const MockUSD = await ethers.getContractFactory('MockUSD')
   const mockUSD = await MockUSD.deploy()
   await mockUSD.waitForDeployment()
