@@ -56,10 +56,51 @@ interface Body {
   phone: string // E.164, e.g. +14155552671
 }
 
+// ─── Rate limiting ────────────────────────────────────────────────────────────
+// Every lookup burns paid ODIS quota, so throttle hard. In-memory buckets are
+// per-instance (fine on a single Fly machine / low-traffic Vercel function);
+// swap for a shared store (KV/Redis) before scaling out.
+
+const RL_WINDOW_MS = 60_000
+const RL_MAX_PER_IP = 10 // lookups per IP per minute
+const RL_MAX_PER_PHONE = 3 // lookups per phone per minute (any IP)
+const buckets = new Map<string, { count: number; resetAt: number }>()
+
+function rateLimited(key: string, max: number): boolean {
+  const now = Date.now()
+  const b = buckets.get(key)
+  if (!b || now >= b.resetAt) {
+    buckets.set(key, { count: 1, resetAt: now + RL_WINDOW_MS })
+    return false
+  }
+  b.count += 1
+  return b.count > max
+}
+
+// Drop expired buckets so the map cannot grow unbounded.
+setInterval(() => {
+  const now = Date.now()
+  buckets.forEach((b, k) => now >= b.resetAt && buckets.delete(k))
+}, RL_WINDOW_MS).unref?.()
+
 export async function POST(req: Request) {
-  const { phone } = (await req.json()) as Body
+  const ip = (req.headers.get('x-forwarded-for') ?? 'unknown').split(',')[0].trim()
+  if (rateLimited(`ip:${ip}`, RL_MAX_PER_IP)) {
+    return NextResponse.json({ error: 'rate_limited' }, { status: 429, headers: { 'retry-after': '60' } })
+  }
+
+  let phone: string
+  try {
+    phone = ((await req.json()) as Body).phone
+  } catch {
+    return NextResponse.json({ error: 'invalid_body' }, { status: 400 })
+  }
   if (!phone || !/^\+[1-9]\d{6,14}$/.test(phone)) {
     return NextResponse.json({ error: 'invalid_phone' }, { status: 400 })
+  }
+
+  if (rateLimited(`phone:${phone}`, RL_MAX_PER_PHONE)) {
+    return NextResponse.json({ error: 'rate_limited' }, { status: 429, headers: { 'retry-after': '60' } })
   }
 
   const odisKey = process.env.ODIS_PRIVATE_KEY
@@ -105,7 +146,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ address: accounts[0] })
   } catch (e) {
-    const message = e instanceof Error ? e.message : 'unknown'
-    return NextResponse.json({ error: 'lookup_failed', message }, { status: 502 })
+    // Log the detail server-side only — SDK errors can leak infra internals.
+    console.error('resolve-phone lookup failed:', e instanceof Error ? e.message : e)
+    return NextResponse.json({ error: 'lookup_failed' }, { status: 502 })
   }
 }

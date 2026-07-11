@@ -14,7 +14,11 @@ export function getTheme(): Theme {
 export function resolveDark(theme: Theme): boolean {
   if (theme === 'dark') return true
   if (theme === 'light') return false
-  return window.matchMedia('(prefers-color-scheme: dark)').matches
+  try {
+    return window.matchMedia?.('(prefers-color-scheme: dark)')?.matches ?? false
+  } catch {
+    return false // some embedded webviews expose a broken matchMedia
+  }
 }
 
 export function applyTheme(theme: Theme) {

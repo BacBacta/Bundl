@@ -10,6 +10,7 @@
 
 import { ACTIVE_CHAIN, celoMainnet } from './chains'
 import { TESTNET_STABLECOINS, STABLECOINS, FEE_RECIPIENT } from './tokens'
+import { fetchWithTimeout } from './net'
 
 export const PRO_PRICE_USD = 5
 export const FREE_TIER_MAX_RECIPIENTS = 5
@@ -28,14 +29,26 @@ const STABLE_ADDRESSES = new Set(
 
 const CACHE_KEY = 'bundl_pro_status'
 
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000
+
 export function getCachedProStatus(): boolean {
   if (typeof window === 'undefined') return false
-  return localStorage.getItem(CACHE_KEY) === '1'
+  // TTL'd cache: instant UI on load, but re-verified on-chain within a day —
+  // a stale flag (different wallet, cleared payment) can't stick forever.
+  try {
+    const raw = localStorage.getItem(CACHE_KEY)
+    if (!raw) return false
+    if (raw === '1') return true // pre-TTL format
+    const { v, at } = JSON.parse(raw) as { v: boolean; at: number }
+    return v && Date.now() - at < CACHE_TTL_MS
+  } catch {
+    return false
+  }
 }
 
 function setCachedProStatus(v: boolean) {
   if (typeof window === 'undefined') return
-  localStorage.setItem(CACHE_KEY, v ? '1' : '0')
+  localStorage.setItem(CACHE_KEY, JSON.stringify({ v, at: Date.now() }))
 }
 
 /**
@@ -49,7 +62,7 @@ export async function checkProStatus(userAddress: `0x${string}`): Promise<boolea
 
   try {
     const url = `${BLOCKSCOUT_API}?module=account&action=tokentx&address=${userAddress}&sort=desc`
-    const res = await fetch(url)
+    const res = await fetchWithTimeout(url)
     const json = await res.json()
     if (json.status !== '1' || !Array.isArray(json.result)) return false
 

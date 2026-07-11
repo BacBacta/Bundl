@@ -55,7 +55,10 @@ export function cacheName(address: string, name: string) {
   if (typeof window === 'undefined' || !name) return
   const names = loadNames()
   names[address.toLowerCase()] = name
-  localStorage.setItem(NAME_KEY, JSON.stringify(names))
+  try {
+    localStorage.setItem(NAME_KEY, JSON.stringify(names))
+  } catch {}
+  displayNameMemo.set(address, name) // keep the render memo in sync
 }
 
 export function getCachedName(address: string): string | null {
@@ -74,18 +77,29 @@ export function resolveName(address: string): string {
  * human label, so a recurring payment's saved name is never "forgotten"
  * just because it was typed manually instead of picked from contacts.
  */
+const displayNameMemo = new Map<string, string>()
+
 export function resolveDisplayName(address: string): string {
+  // In-memory memo: history lists call this per row — don't re-read and
+  // re-parse localStorage hundreds of times per render.
+  const memo = displayNameMemo.get(address)
+  if (memo) return memo
+
   const cached = getCachedName(address)
-  if (cached) return cached
+  if (cached) {
+    displayNameMemo.set(address, cached)
+    return cached
+  }
 
   const addr = address.toLowerCase()
   const recurring = getRecurring().find((r) => r.address.toLowerCase() === addr)
   if (recurring) {
     cacheName(address, recurring.name) // backfill so future lookups are instant
+    displayNameMemo.set(address, recurring.name)
     return recurring.name
   }
 
-  return shortenAddress(address)
+  return shortenAddress(address) // not memoised: a name may be learned later
 }
 
 /** True if `address` has no known name anywhere (cache, Recurring list). */

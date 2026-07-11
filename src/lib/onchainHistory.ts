@@ -13,6 +13,7 @@ import { ACTIVE_CHAIN, celoMainnet } from './chains'
 import { TESTNET_STABLECOINS, STABLECOINS } from './tokens'
 import { resolveDisplayName } from './socialconnect'
 import { round2 } from './format'
+import { fetchWithTimeout } from './net'
 import type { Bundle, BundleLine, Payment } from './storage'
 
 const BLOCKSCOUT_API =
@@ -25,6 +26,22 @@ const STABLE_ADDRESSES = new Set(
     (t) => t.address.toLowerCase(),
   ),
 )
+
+// Every transfer we keep is one of our configured stablecoins, so trust the
+// local token config for decimals first — Blockscout occasionally omits or
+// zeroes `tokenDecimal`, and a blind 18 fallback misreads USDC (6) by 10^12.
+const DECIMALS_BY_ADDRESS = new Map(
+  [...Object.values(ACTIVE_CHAIN.id === celoMainnet.id ? STABLECOINS : TESTNET_STABLECOINS)].map(
+    (t) => [t.address.toLowerCase(), t.decimals],
+  ),
+)
+
+function decimalsFor(t: { contractAddress: string; tokenDecimal: string }): number {
+  const known = DECIMALS_BY_ADDRESS.get(t.contractAddress?.toLowerCase())
+  if (known !== undefined) return known
+  const reported = Number(t.tokenDecimal)
+  return reported >= 1 && reported <= 18 ? reported : 18
+}
 
 interface RawTransfer {
   hash: string
@@ -50,7 +67,7 @@ export async function fetchOnchainActivity(userAddress: `0x${string}`): Promise<
   let transfers: RawTransfer[] = []
   try {
     const url = `${BLOCKSCOUT_API}?module=account&action=tokentx&address=${userAddress}&sort=desc`
-    const res = await fetch(url)
+    const res = await fetchWithTimeout(url)
     const json = await res.json()
     if (json.status !== '1' || !Array.isArray(json.result)) return { bundles: [], payments: [] }
     transfers = json.result as RawTransfer[]
@@ -81,7 +98,7 @@ export async function fetchOnchainActivity(userAddress: `0x${string}`): Promise<
     if (txs.length >= 2) {
       // Bundle settlement: 2+ transfers in one tx.
       const lines: BundleLine[] = txs.map((t) => {
-        const decimals = Number(t.tokenDecimal) || 18
+        const decimals = decimalsFor(t)
         return {
           name: resolveDisplayName(t.to),
           address: t.to,
@@ -93,7 +110,7 @@ export async function fetchOnchainActivity(userAddress: `0x${string}`): Promise<
     } else {
       // Solo payment: exactly 1 transfer in its own tx (Request / Split via /pay).
       const t = txs[0]
-      const decimals = Number(t.tokenDecimal) || 18
+      const decimals = decimalsFor(t)
       const amount = round2(Number(formatUnits(BigInt(t.value), decimals)))
       payments.push({
         id: String(ms),
@@ -113,21 +130,27 @@ export async function fetchOnchainActivity(userAddress: `0x${string}`): Promise<
 export function mergeBundles(local: Bundle[], chain: Bundle[]): Bundle[] {
   const byHash = new Map<string, Bundle>()
   // Chain first (source of truth), then let local override for richer names.
+  // A local entry without a hash (e.g. saved before confirmation) can't be
+  // deduped, but must still show up rather than vanish from the timeline.
+  const unhashed: Bundle[] = []
   for (const b of chain) byHash.set(b.txHash.toLowerCase(), b)
   for (const b of local) {
     if (b.txHash) byHash.set(b.txHash.toLowerCase(), b)
+    else unhashed.push(b)
   }
-  return [...byHash.values()].sort((a, b) => Number(b.id) - Number(a.id) || 0)
+  return [...byHash.values(), ...unhashed].sort((a, b) => Number(b.id) - Number(a.id) || 0)
 }
 
 /** Merge on-chain payments with the local cache, de-duplicated by tx hash. */
 export function mergePayments(local: Payment[], chain: Payment[]): Payment[] {
   const byHash = new Map<string, Payment>()
+  const unhashed: Payment[] = []
   for (const p of chain) byHash.set(p.txHash.toLowerCase(), p)
   for (const p of local) {
     if (p.txHash) byHash.set(p.txHash.toLowerCase(), p)
+    else unhashed.push(p)
   }
-  return [...byHash.values()].sort((a, b) => Number(b.id) - Number(a.id) || 0)
+  return [...byHash.values(), ...unhashed].sort((a, b) => Number(b.id) - Number(a.id) || 0)
 }
 
 export interface IncomingTransfer {
@@ -148,7 +171,7 @@ export async function fetchIncomingTransfers(
 ): Promise<IncomingTransfer[]> {
   try {
     const url = `${BLOCKSCOUT_API}?module=account&action=tokentx&address=${userAddress}&sort=desc`
-    const res = await fetch(url)
+    const res = await fetchWithTimeout(url)
     const json = await res.json()
     if (json.status !== '1' || !Array.isArray(json.result)) return []
     const transfers = json.result as RawTransfer[]
@@ -157,7 +180,7 @@ export async function fetchIncomingTransfers(
     return transfers
       .filter((t) => t.to?.toLowerCase() === user && STABLE_ADDRESSES.has(t.contractAddress?.toLowerCase()))
       .map((t) => {
-        const decimals = Number(t.tokenDecimal) || 18
+        const decimals = decimalsFor(t)
         return {
           from: t.from,
           amount: round2(Number(formatUnits(BigInt(t.value), decimals))),
