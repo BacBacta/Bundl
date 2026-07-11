@@ -19,6 +19,7 @@ export function initials(label: string): string {
   if (clean.startsWith('0x')) return clean.slice(2, 4).toUpperCase()
   const parts = clean.split(/\s+/).filter(Boolean)
   if (parts.length === 0) return '?'
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  // Single word → single letter ("Mum" → "M", not "MU").
+  if (parts.length === 1) return parts[0][0].toUpperCase()
   return (parts[0][0] + parts[1][0]).toUpperCase()
 }

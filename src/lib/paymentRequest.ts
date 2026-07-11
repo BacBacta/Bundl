@@ -31,8 +31,9 @@ export function decodeRequest(code: string): PaymentRequest | null {
   try {
     const p = JSON.parse(fromBase64Url(code)) as Packed
     if (typeof p.t !== 'string' || !isAddress(p.t)) return null
-    const amount = Number(p.m)
-    if (!isFinite(amount) || amount <= 0) return null
+    const amount = Math.round(Number(p.m) * 100) / 100
+    // Cap: a forged link must not render an absurd "$1e15" request.
+    if (!isFinite(amount) || amount <= 0 || amount > 1_000_000) return null
     return {
       to: p.t as `0x${string}`,
       amount,

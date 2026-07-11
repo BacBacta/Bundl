@@ -67,11 +67,23 @@ export interface Payment {
   amount: number
 }
 
+// A group collection (bill split / cotisation) being tracked: who was asked
+// to pay `perPerson`, since when. Contributions are matched from incoming
+// on-chain transfers — the chain is the ledger, this is just the ask.
+export interface Collect {
+  id: string
+  createdAt: number
+  note: string
+  perPerson: number
+  people: number // expected number of contributors
+}
+
 interface Store {
   recurring: Recurring[]
   deposits: DailyDeposit[]
   bundles: Bundle[]
   payments: Payment[]
+  collects?: Collect[]
   potBalance: number
   streak: number
   lastDepositDate: string
@@ -81,15 +93,46 @@ interface Store {
   spendLimit: number | null
 }
 
-const KEY = 'bundl_v1'
+// Keyed per chain so a testnet→mainnet env switch can't mix addresses
+// from two networks in one store.
+import { ACTIVE_CHAIN } from './chains'
+
+const LEGACY_KEY = 'bundl_v1'
+const KEY = `bundl_v1_${ACTIVE_CHAIN.id}`
+const BACKUP_KEY = `${KEY}_backup`
+const BACKUP_AT_KEY = `${KEY}_backup_at`
+
+function parseStore(raw: string): Store | null {
+  try {
+    const parsed = JSON.parse(raw) as Partial<Store>
+    if (typeof parsed !== 'object' || parsed === null) return null
+    // Backfill fields added after initial release so older saved stores don't
+    // crash, and drop structurally broken entries instead of the whole store.
+    const store = { ...empty(), ...parsed } as Store
+    store.recurring = (Array.isArray(store.recurring) ? store.recurring : []).filter(
+      (r) => r && typeof r.name === 'string' && typeof r.address === 'string' && typeof r.amount === 'number',
+    )
+    if (typeof store.potBalance !== 'number' || !isFinite(store.potBalance)) store.potBalance = 0
+    return store
+  } catch {
+    return null
+  }
+}
 
 function load(): Store {
   if (typeof window === 'undefined') return empty()
   try {
+    // One-time migration: pre-chain-keyed stores were written by the same
+    // network the app is pointed at now, so adopt them under the new key.
+    if (!localStorage.getItem(KEY) && localStorage.getItem(LEGACY_KEY)) {
+      localStorage.setItem(KEY, localStorage.getItem(LEGACY_KEY)!)
+      localStorage.removeItem(LEGACY_KEY)
+    }
     const raw = localStorage.getItem(KEY)
     if (!raw) return empty()
-    // Backfill fields added after initial release so older saved stores don't crash.
-    return { ...empty(), ...(JSON.parse(raw) as Partial<Store>) } as Store
+    // Corrupted main store → fall back to the daily backup instead of wiping.
+    const store = parseStore(raw) ?? parseStore(localStorage.getItem(BACKUP_KEY) ?? '')
+    return store ?? empty()
   } catch {
     return empty()
   }
@@ -111,7 +154,28 @@ function empty(): Store {
 
 function save(store: Store) {
   if (typeof window === 'undefined') return
-  localStorage.setItem(KEY, JSON.stringify(store))
+  try {
+    localStorage.setItem(KEY, JSON.stringify(store))
+  } catch {
+    // Quota exceeded — shed the oldest half of history (never the recurring
+    // list or pot state) and retry once rather than silently losing the write.
+    try {
+      store.bundles = store.bundles.slice(-Math.ceil(store.bundles.length / 2))
+      store.payments = store.payments.slice(-Math.ceil(store.payments.length / 2))
+      localStorage.setItem(KEY, JSON.stringify(store))
+    } catch (e) {
+      console.warn('bundl: localStorage write failed — changes may not persist', e)
+      return
+    }
+  }
+  // Refresh the corruption-recovery backup at most once a day.
+  try {
+    const at = Number(localStorage.getItem(BACKUP_AT_KEY) ?? 0)
+    if (Date.now() - at > 24 * 60 * 60 * 1000) {
+      localStorage.setItem(BACKUP_KEY, JSON.stringify(store))
+      localStorage.setItem(BACKUP_AT_KEY, String(Date.now()))
+    }
+  } catch {}
 }
 
 // --- Recurring ---
@@ -237,6 +301,26 @@ export function getPayments(): Payment[] {
 export function addPayment(payment: Payment) {
   const store = load()
   store.payments = [...store.payments, payment]
+  save(store)
+}
+
+// --- Group collections (bill splits / cotisations being tracked) ---
+
+export function getCollects(): Collect[] {
+  return [...(load().collects ?? [])].reverse()
+}
+
+export function addCollect(c: Omit<Collect, 'id' | 'createdAt'>): Collect {
+  const store = load()
+  const entry: Collect = { ...c, id: Date.now().toString(), createdAt: Date.now() }
+  store.collects = [...(store.collects ?? []), entry]
+  save(store)
+  return entry
+}
+
+export function deleteCollect(id: string) {
+  const store = load()
+  store.collects = (store.collects ?? []).filter((c) => c.id !== id)
   save(store)
 }
 

@@ -19,3 +19,6 @@ typechain-types/
 .DS_Store
 Thumbs.db
 .vercel
+
+# build artifact
+tsconfig.tsbuildinfo

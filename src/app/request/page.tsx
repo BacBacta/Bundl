@@ -1,12 +1,15 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { HandCoins, Users, Share2, Check, Sparkles } from 'lucide-react'
+import { HandCoins, Users, Share2, Check, Sparkles, MessageCircle, X, CheckCircle2 } from 'lucide-react'
 import { BottomNav } from '@/components/BottomNav'
+import { Avatar } from '@/components/Avatar'
 import { getAccount, isMiniPay } from '@/lib/wallet'
-import { getCachedName } from '@/lib/socialconnect'
+import { getCachedName, resolveDisplayName } from '@/lib/socialconnect'
 import { buildRequestUrl } from '@/lib/paymentRequest'
 import { usd, round2 } from '@/lib/format'
+import { type Collect, getCollects, addCollect, deleteCollect } from '@/lib/storage'
+import { fetchIncomingTransfers, type IncomingTransfer } from '@/lib/onchainHistory'
 
 type Mode = 'request' | 'split'
 
@@ -24,34 +27,70 @@ export default function RequestPage() {
     getAccount().then(setAccount)
   }, [])
 
-  const amt = parseFloat(amount)
-  const nPeople = Math.max(2, parseInt(people) || 2)
-  const perPerson = mode === 'split' && amt > 0 ? round2(amt / nPeople) : amt
+  // Caps mirror decodeRequest's validation so a link we create always decodes.
+  const amt = Math.min(parseFloat(amount) || 0, 1_000_000)
+  const nPeople = Math.min(Math.max(2, parseInt(people) || 2), 150)
+  const perPerson = mode === 'split' && amt > 0 ? round2(amt / nPeople) : round2(amt)
   const valid = account && perPerson > 0
 
-  async function handleShare() {
-    if (!valid) return
-    const url = buildRequestUrl({
+  // Tracked collections — matched against incoming on-chain transfers.
+  const [collects, setCollects] = useState<Collect[]>([])
+  const [incoming, setIncoming] = useState<IncomingTransfer[]>([])
+
+  useEffect(() => {
+    setCollects(getCollects())
+  }, [])
+
+  useEffect(() => {
+    if (!account || collects.length === 0) return
+    const oldest = Math.min(...collects.map((c) => c.createdAt))
+    fetchIncomingTransfers(account as `0x${string}`, oldest).then(setIncoming)
+  }, [account, collects])
+
+  function startTracking() {
+    const entry = addCollect({ note: note.trim() || (mode === 'split' ? 'Bill split' : 'Request'), perPerson, people: mode === 'split' ? nPeople : 1 })
+    setCollects((prev) => [entry, ...prev])
+  }
+
+  function shareText(url: string) {
+    return (
+      (mode === 'split'
+        ? `Your share is $${usd(perPerson)}${note ? ` for ${note}` : ''} — pay me on Bundl:`
+        : `Please pay me $${usd(perPerson)}${note ? ` for ${note}` : ''} on Bundl:`) + ` ${url}`
+    )
+  }
+
+  function requestUrl() {
+    return buildRequestUrl({
       to: account as `0x${string}`,
       amount: perPerson,
       note: note.trim() || undefined,
       name: getCachedName(account!) || undefined,
     })
-    const text =
-      mode === 'split'
-        ? `Your share is $${usd(perPerson)}${note ? ` for ${note}` : ''} — pay me on Bundl:`
-        : `Please pay me $${usd(perPerson)}${note ? ` for ${note}` : ''} on Bundl:`
+  }
+
+  async function handleShare() {
+    if (!valid) return
+    const url = requestUrl()
     try {
       if (navigator.share) {
-        await navigator.share({ title: 'Bundl payment request', text, url })
+        await navigator.share({ title: 'Bundl payment request', text: shareText(''), url })
       } else {
         await navigator.clipboard.writeText(url)
         setShared(true)
         setTimeout(() => setShared(false), 2000)
       }
+      startTracking()
     } catch {
-      /* cancelled */
+      /* cancelled — don't track a request that was never sent */
     }
+  }
+
+  // WhatsApp is where the group already is — one tap, no share-sheet detour.
+  function handleWhatsApp() {
+    if (!valid) return
+    window.open(`https://wa.me/?text=${encodeURIComponent(shareText(requestUrl()))}`, '_blank')
+    startTracking()
   }
 
   return (
@@ -108,10 +147,10 @@ export default function RequestPage() {
         </div>
       )}
 
-      {/* Address gate */}
+      {/* Address gate — neutral info, not an alarm: the form itself stays usable */}
       {!account && (
-        <p className="text-caption text-warning bg-warning/10 rounded-card p-3 mt-5">
-          {inMiniPay ? 'Connecting your wallet…' : 'Open Bundl inside MiniPay to create a request.'}
+        <p className="text-caption text-content-muted bg-surface-sunken rounded-card p-3 mt-5">
+          {inMiniPay ? 'Connecting your wallet…' : 'Open Bundl inside MiniPay to share this request.'}
         </p>
       )}
 
@@ -123,9 +162,92 @@ export default function RequestPage() {
         {shared ? <Check size={18} /> : <Share2 size={18} />}
         {shared ? 'Link copied' : mode === 'split' ? 'Share with the group' : 'Share request'}
       </button>
+      <button
+        onClick={handleWhatsApp}
+        disabled={!valid}
+        className="w-full py-3.5 rounded-card font-semibold border border-line text-content disabled:opacity-40 active:bg-surface-sunken mt-2 flex items-center justify-center gap-2"
+      >
+        <MessageCircle size={17} /> Share on WhatsApp
+      </button>
+
+      {/* Who paid — contributions matched from incoming on-chain transfers */}
+      {collects.length > 0 && (
+        <section className="mt-8">
+          <p className="text-micro font-semibold uppercase tracking-wide text-content-subtle mb-3 px-1">
+            Tracking
+          </p>
+          <div className="space-y-3">
+            {collects.map((c) => (
+              <CollectCard
+                key={c.id}
+                collect={c}
+                incoming={incoming}
+                onDismiss={() => {
+                  deleteCollect(c.id)
+                  setCollects((prev) => prev.filter((x) => x.id !== c.id))
+                }}
+              />
+            ))}
+          </div>
+        </section>
+      )}
 
       <BottomNav />
     </main>
+  )
+}
+
+function CollectCard({
+  collect,
+  incoming,
+  onDismiss,
+}: {
+  collect: Collect
+  incoming: IncomingTransfer[]
+  onDismiss: () => void
+}) {
+  // A transfer counts as a contribution if it arrived after the ask and
+  // matches the per-person amount (±1% for rounding), newest first, capped
+  // at the expected head-count so an unrelated same-amount payment later
+  // doesn't over-fill the bar.
+  const paid = incoming
+    .filter((t) => t.ms >= collect.createdAt && Math.abs(t.amount - collect.perPerson) <= collect.perPerson * 0.01)
+    .slice(0, collect.people)
+  const done = paid.length >= collect.people
+
+  return (
+    <div className="bg-surface-raised border border-line rounded-card shadow-card p-4">
+      <div className="flex items-start justify-between mb-2">
+        <div>
+          <p className="text-body font-semibold text-content">{collect.note}</p>
+          <p className="text-caption text-content-subtle">
+            ${usd(collect.perPerson)} × {collect.people} {collect.people > 1 ? 'people' : 'person'}
+          </p>
+        </div>
+        <button onClick={onDismiss} aria-label="Dismiss" className="text-content-subtle p-1 active:opacity-60">
+          <X size={16} />
+        </button>
+      </div>
+
+      <div className="h-1.5 bg-surface-sunken rounded-pill overflow-hidden mb-2">
+        <div
+          className="h-full bg-success rounded-pill transition-all duration-500"
+          style={{ width: `${Math.min(100, (paid.length / collect.people) * 100)}%` }}
+        />
+      </div>
+      <p className={`flex items-center gap-1.5 text-caption ${done ? 'text-success' : 'text-content-muted'}`}>
+        {done && <CheckCircle2 size={14} />}
+        {paid.length} of {collect.people} paid{done ? ' — all set!' : ''}
+      </p>
+
+      {paid.length > 0 && (
+        <div className="flex items-center gap-1.5 mt-2.5">
+          {paid.slice(0, 8).map((t, i) => (
+            <Avatar key={`${t.txHash}-${i}`} seed={t.from} label={resolveDisplayName(t.from)} size={26} />
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -142,10 +264,12 @@ function Field({
   placeholder?: string
   inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode']
 }) {
+  const id = `field-${label.toLowerCase().replace(/[^a-z]+/g, '-')}`
   return (
     <div>
-      <label className="text-caption font-medium text-content-muted mb-1 block">{label}</label>
+      <label htmlFor={id} className="text-caption font-medium text-content-muted mb-1 block">{label}</label>
       <input
+        id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}

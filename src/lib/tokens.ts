@@ -11,32 +11,19 @@ export const DISPERSE_ADDRESS = (
   process.env.NEXT_PUBLIC_DISPERSE_ADDRESS || '0x0000000000000000000000000000000000000000'
 ) as `0x${string}`
 
-// Treasury address that receives the per-bundle service fee.
-//
-// Fee policy (intentional, not an oversight): the $0.15 fee applies ONLY to
-// recurring bundle settlements (SettleSheet), the paid core product. Direct
-// P2P payments and bill splits via /pay are, and stay, fee-free — they are
-// growth/acquisition tools (Idea B — see product notes) and charging on them
-// would tax the exact flows meant to bring new users into Bundl.
+// Treasury address: receives Pro unlock payments, and should match the
+// treasury configured in the Disperse contract (setFee) for the settlement
+// fee. Fee policy (intentional): the fee applies ONLY to bundle settlements,
+// the paid core product. Direct P2P payments and bill splits via /pay are,
+// and stay, fee-free — they are growth/acquisition tools and charging on
+// them would tax the exact flows meant to bring new users into Bundl.
 export const FEE_RECIPIENT = (
   process.env.NEXT_PUBLIC_FEE_RECIPIENT || '0x0000000000000000000000000000000000000000'
 ) as `0x${string}`
 
-export const SERVICE_FEE_USD = 0.15
-
-// Volume-based fee discount — rewards heavier users with a lower per-
-// settlement fee. Computed client-side from the user's local bundle history
-// (an approximation of lifetime volume, same trust boundary as the flat fee
-// above: the app decides the fee amount before building the transaction).
-const FEE_TIERS = [
-  { minVolume: 2000, fee: 0.05 },
-  { minVolume: 500, fee: 0.1 },
-  { minVolume: 0, fee: SERVICE_FEE_USD },
-] as const
-
-export function feeForVolume(lifetimeVolumeUsd: number): number {
-  return FEE_TIERS.find((t) => lifetimeVolumeUsd >= t.minVolume)?.fee ?? SERVICE_FEE_USD
-}
+// The per-settlement service fee now lives IN the Disperse contract
+// (feeBps + treasury, owner-set, capped at 1%) so it cannot be stripped
+// client-side. The app reads feeBps via getFeeBps() for display only.
 
 // ─── Stablecoins ─────────────────────────────────────────────────────────────
 // MiniPay supports USDm / USDC / USDT only. Never expose CELO to users.

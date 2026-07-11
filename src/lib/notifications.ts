@@ -127,8 +127,13 @@ export function notifyBundleSettled(recipientCount: number, total: number) {
   addNotification({ type: 'sent', title: '✅ Bundle settled', body: `You paid ${recipientCount} recipient${recipientCount !== 1 ? 's' : ''} — $${total.toFixed(2)} total.` })
 }
 
+let lastReceivedNotifyMs = 0
+
 export function notifyPaymentsReceived(count: number, totalUsd: number) {
   if (count === 0) return
+  // Throttle: a re-fetch or double effect-run must not spam duplicates.
+  if (Date.now() - lastReceivedNotifyMs < 30_000) return
+  lastReceivedNotifyMs = Date.now()
   addNotification({
     type: 'received',
     title: count === 1 ? '💰 Payment received' : `💰 ${count} payments received`,

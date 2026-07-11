@@ -14,12 +14,26 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 ///         - Never holds funds: tokens go payer → recipient directly.
 ///         - ReentrancyGuard, owner Pausable kill-switch, and a max-recipients
 ///           cap to bound gas.
+/// @dev SUPPORTED TOKENS: standard ERC20 stablecoins only (USDm/USDC/USDT).
+///      Fee-on-transfer or rebasing tokens are NOT supported — amounts received
+///      would silently diverge from `amounts[i]` and from the emitted events.
+///      The frontend only offers the whitelisted stablecoins in tokens.ts.
 /// @dev Emits BundleSettled so off-chain analytics can index volume + revenue.
 contract Disperse is Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     /// @notice Upper bound on recipients per call to keep gas predictable.
     uint256 public constant MAX_RECIPIENTS = 150;
+
+    /// @notice Hard cap on the protocol fee: 1% (100 bps).
+    uint256 public constant MAX_FEE_BPS = 100;
+
+    /// @notice Protocol fee in basis points, charged on top of the dispersed total.
+    ///         0 (the default) disables the fee entirely.
+    uint96 public feeBps;
+
+    /// @notice Receiver of the protocol fee. Must be set for a non-zero feeBps.
+    address public treasury;
 
     /// @notice Emitted once per successful settlement.
     event BundleSettled(
@@ -29,7 +43,27 @@ contract Disperse is Ownable, Pausable, ReentrancyGuard {
         uint256 totalAmount
     );
 
+    /// @notice Emitted when a protocol fee is charged alongside a settlement.
+    event FeeCollected(address indexed payer, address indexed token, uint256 feeAmount);
+
+    /// @notice Emitted when the owner changes the fee configuration.
+    event FeeConfigured(address treasury, uint256 feeBps);
+
     constructor() Ownable(msg.sender) {}
+
+    /// @notice Owner — set the protocol fee and its receiver.
+    function setFee(address newTreasury, uint96 newFeeBps) external onlyOwner {
+        require(newFeeBps <= MAX_FEE_BPS, "fee too high");
+        require(newFeeBps == 0 || newTreasury != address(0), "treasury required");
+        treasury = newTreasury;
+        feeBps = newFeeBps;
+        emit FeeConfigured(newTreasury, newFeeBps);
+    }
+
+    /// @notice Fee that will be charged on top of a settlement of `total`.
+    function quoteFee(uint256 total) public view returns (uint256) {
+        return (total * feeBps) / 10_000;
+    }
 
     /// @notice Send `amounts[i]` of `token` from the caller to each `recipients[i]`.
     /// @dev Requires the caller to have approved this contract for the total.
@@ -56,6 +90,12 @@ contract Disperse is Ownable, Pausable, ReentrancyGuard {
             unchecked {
                 ++i;
             }
+        }
+
+        uint256 fee = quoteFee(total);
+        if (fee > 0) {
+            token.safeTransferFrom(msg.sender, treasury, fee);
+            emit FeeCollected(msg.sender, address(token), fee);
         }
 
         emit BundleSettled(msg.sender, address(token), n, total);

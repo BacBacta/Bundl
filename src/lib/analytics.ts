@@ -15,6 +15,7 @@
 import { formatUnits } from 'viem'
 import { ACTIVE_CHAIN, celoMainnet } from './chains'
 import { DISPERSE_ADDRESS, TESTNET_STABLECOINS, STABLECOINS } from './tokens'
+import { fetchWithTimeout } from './net'
 
 const BLOCKSCOUT_API =
   ACTIVE_CHAIN.id === celoMainnet.id
@@ -23,12 +24,22 @@ const BLOCKSCOUT_API =
 
 // keccak256("BundleSettled(address,address,uint256,uint256)")
 const BUNDLE_SETTLED_TOPIC0 = '0x50aec51cf5711a555a004666ca126b8e2d31d0636857f08b0f12565dccdf0aed'
+// keccak256("FeeCollected(address,address,uint256)")
+const FEE_COLLECTED_TOPIC0 = '0xf228de527fc1b9843baac03b9a04565473a263375950e63435d4138464386f46'
 
-const STABLE_ADDRESSES = new Set(
-  [...Object.values(ACTIVE_CHAIN.id === celoMainnet.id ? STABLECOINS : TESTNET_STABLECOINS)].map(
-    (t) => t.address.toLowerCase(),
-  ),
-)
+const ACTIVE_TOKENS = Object.values(ACTIVE_CHAIN.id === celoMainnet.id ? STABLECOINS : TESTNET_STABLECOINS)
+
+const STABLE_ADDRESSES = new Set(ACTIVE_TOKENS.map((t) => t.address.toLowerCase()))
+
+// address (lowercase) → { symbol, decimals } for event decoding
+const TOKEN_META = new Map(ACTIVE_TOKENS.map((t) => [t.address.toLowerCase(), { symbol: t.symbol, decimals: t.decimals }]))
+
+// Read the nth 32-byte word of a log's data field as a bigint.
+function dataWord(data: string, n: number): bigint {
+  const hex = data?.startsWith('0x') ? data.slice(2) : (data ?? '')
+  const word = hex.slice(n * 64, (n + 1) * 64)
+  return word ? BigInt('0x' + word) : 0n
+}
 
 interface RawTx {
   hash: string
@@ -43,6 +54,7 @@ interface RawLog {
   transactionHash: string
   topics: string[]
   timeStamp: string
+  data: string
 }
 
 export interface ContractStats {
@@ -52,6 +64,8 @@ export interface ContractStats {
   failedRate: number // 0–1, over ALL calls (not just verified settlements)
   last7d: number
   last30d: number
+  volumeByToken: Record<string, number> // USD volume settled, per stablecoin symbol
+  revenue: number // USD collected via FeeCollected events
   deployed: boolean
 }
 
@@ -62,6 +76,8 @@ const EMPTY: Omit<ContractStats, 'deployed'> = {
   failedRate: 0,
   last7d: 0,
   last30d: 0,
+  volumeByToken: {},
+  revenue: 0,
 }
 
 export async function fetchContractStats(): Promise<ContractStats | null> {
@@ -71,17 +87,23 @@ export async function fetchContractStats(): Promise<ContractStats | null> {
 
   let txs: RawTx[] = []
   let logs: RawLog[] = []
+  let feeLogs: RawLog[] = []
   try {
-    const [txRes, logRes] = await Promise.all([
-      fetch(`${BLOCKSCOUT_API}?module=account&action=txlist&address=${DISPERSE_ADDRESS}&sort=desc`),
-      fetch(
+    const [txRes, logRes, feeRes] = await Promise.all([
+      fetchWithTimeout(`${BLOCKSCOUT_API}?module=account&action=txlist&address=${DISPERSE_ADDRESS}&sort=desc`),
+      fetchWithTimeout(
         `${BLOCKSCOUT_API}?module=logs&action=getLogs&address=${DISPERSE_ADDRESS}&topic0=${BUNDLE_SETTLED_TOPIC0}&fromBlock=0&toBlock=latest`,
+      ),
+      fetchWithTimeout(
+        `${BLOCKSCOUT_API}?module=logs&action=getLogs&address=${DISPERSE_ADDRESS}&topic0=${FEE_COLLECTED_TOPIC0}&fromBlock=0&toBlock=latest`,
       ),
     ])
     const txJson = await txRes.json()
     const logJson = await logRes.json()
+    const feeJson = await feeRes.json()
     if (txJson.status === '1' && Array.isArray(txJson.result)) txs = txJson.result as RawTx[]
     if (logJson.status === '1' && Array.isArray(logJson.result)) logs = logJson.result as RawLog[]
+    if (feeJson.status === '1' && Array.isArray(feeJson.result)) feeLogs = feeJson.result as RawLog[]
   } catch {
     return null
   }
@@ -92,15 +114,30 @@ export async function fetchContractStats(): Promise<ContractStats | null> {
   // topics: [0]=event sig, [1]=payer (indexed), [2]=token (indexed)
   const verifiedHashes = new Set<string>()
   const verifiedUsers = new Set<string>()
+  const volumeByToken: Record<string, number> = {}
   for (const log of logs) {
     const tokenTopic = log.topics?.[2]
     if (!tokenTopic) continue
     const token = ('0x' + tokenTopic.slice(-40)).toLowerCase()
-    if (!STABLE_ADDRESSES.has(token)) continue
+    const meta = TOKEN_META.get(token)
+    if (!meta) continue // not a known stablecoin → not a countable settlement
     verifiedHashes.add(log.transactionHash.toLowerCase())
     const payerTopic = log.topics?.[1]
     if (payerTopic) verifiedUsers.add(('0x' + payerTopic.slice(-40)).toLowerCase())
+    // data: [recipientCount, totalAmount] — decode volume per stablecoin
+    const total = Number(formatUnits(dataWord(log.data, 1), meta.decimals))
+    volumeByToken[meta.symbol] = Math.round(((volumeByToken[meta.symbol] ?? 0) + total) * 100) / 100
   }
+
+  // Protocol revenue — straight from FeeCollected, same allowlist rule.
+  let revenue = 0
+  for (const log of feeLogs) {
+    const token = ('0x' + (log.topics?.[2] ?? '').slice(-40)).toLowerCase()
+    const meta = TOKEN_META.get(token)
+    if (!meta) continue
+    revenue += Number(formatUnits(dataWord(log.data, 0), meta.decimals))
+  }
+  revenue = Math.round(revenue * 100) / 100
 
   const now = Date.now()
   const day = 86_400_000
@@ -129,6 +166,8 @@ export async function fetchContractStats(): Promise<ContractStats | null> {
     failedRate: txs.length ? failed / txs.length : 0,
     last7d,
     last30d,
+    volumeByToken,
+    revenue,
     deployed: true,
   }
 }

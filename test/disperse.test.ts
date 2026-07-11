@@ -126,6 +126,71 @@ describe('Disperse (hardened)', () => {
     ).to.be.reverted
   })
 
+  it('handles a single recipient', async () => {
+    const { payer, a, token, disperse } = await fixture()
+    await expect(disperse.connect(payer).disperseToken(await token.getAddress(), [a.address], [E(7)]))
+      .to.emit(disperse, 'BundleSettled')
+      .withArgs(payer.address, await token.getAddress(), 1, E(7))
+    expect(await token.balanceOf(a.address)).to.equal(E(7))
+  })
+
+  it('reverts on a zero amount in the middle of the batch', async () => {
+    const { payer, a, b, c, token, disperse } = await fixture()
+    await expect(
+      disperse.connect(payer).disperseToken(await token.getAddress(), [a.address, b.address, c.address], [E(1), 0, E(2)]),
+    ).to.be.revertedWith('zero amount')
+  })
+
+  it('accepts exactly MAX_RECIPIENTS', async () => {
+    const { payer, a, token, disperse } = await fixture()
+    const max = Number(await disperse.MAX_RECIPIENTS())
+    await token.mint(payer.address, E(max))
+    await expect(
+      disperse.connect(payer).disperseToken(await token.getAddress(), Array(max).fill(a.address), Array(max).fill(E(1))),
+    ).to.emit(disperse, 'BundleSettled')
+  })
+
+  describe('Protocol fee', () => {
+    it('charges no fee by default', async () => {
+      const { owner, payer, a, token, disperse } = await fixture()
+      await expect(
+        disperse.connect(payer).disperseToken(await token.getAddress(), [a.address], [E(100)]),
+      ).to.not.emit(disperse, 'FeeCollected')
+      expect(await token.balanceOf(owner.address)).to.equal(0)
+    })
+
+    it('collects the configured fee on top and emits FeeCollected', async () => {
+      const { owner, payer, a, b, token, disperse } = await fixture()
+      await disperse.connect(owner).setFee(owner.address, 50) // 0.5%
+      expect(await disperse.quoteFee(E(200))).to.equal(E(1))
+
+      await expect(
+        disperse.connect(payer).disperseToken(await token.getAddress(), [a.address, b.address], [E(150), E(50)]),
+      )
+        .to.emit(disperse, 'FeeCollected')
+        .withArgs(payer.address, await token.getAddress(), E(1))
+
+      expect(await token.balanceOf(a.address)).to.equal(E(150))
+      expect(await token.balanceOf(b.address)).to.equal(E(50))
+      expect(await token.balanceOf(owner.address)).to.equal(E(1))
+    })
+
+    it('caps the fee at MAX_FEE_BPS and requires a treasury', async () => {
+      const { owner, disperse } = await fixture()
+      await expect(disperse.connect(owner).setFee(owner.address, 101)).to.be.revertedWith('fee too high')
+      await expect(disperse.connect(owner).setFee(ethers.ZeroAddress, 10)).to.be.revertedWith('treasury required')
+      await expect(disperse.connect(owner).setFee(ethers.ZeroAddress, 0)).to.emit(disperse, 'FeeConfigured')
+    })
+
+    it('non-owner cannot set the fee', async () => {
+      const { payer, disperse } = await fixture()
+      await expect(disperse.connect(payer).setFee(payer.address, 10)).to.be.revertedWithCustomError(
+        disperse,
+        'OwnableUnauthorizedAccount',
+      )
+    })
+  })
+
   describe('Pausable', () => {
     it('owner can pause and unpause; paused blocks settlement', async () => {
       const { owner, payer, a, token, disperse } = await fixture()

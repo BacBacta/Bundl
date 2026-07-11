@@ -47,6 +47,9 @@ export default function PayPage() {
         setAccount(addr)
         if (addr) setToken(await getPreferredStablecoin(addr as `0x${string}`))
       })
+      // A wallet/RPC hiccup must not leave the button on "Connecting…" forever;
+      // checked flips regardless and the no-token path redirects to deposit.
+      .catch(() => {})
       .finally(() => setChecked(true))
   }, [])
 
@@ -59,9 +62,10 @@ export default function PayPage() {
   function friendlyError(e: unknown): string {
     const msg = e instanceof Error ? e.message : String(e)
     if (/user rejected|denied|cancel/i.test(msg)) return 'Payment cancelled.'
-    if (/insufficient.*fee|gas/i.test(msg)) return 'Not enough balance to cover the network fee. Add funds and try again.'
-    if (/timeout|network|fetch/i.test(msg)) return 'Network timeout. Check your connection and retry.'
-    return 'Payment failed. Please try again.'
+    if (/transfer amount exceeds balance|exceeds balance/i.test(msg)) return 'Not enough balance for this payment. Add funds and try again.'
+    if (/insufficient funds|insufficient.*fee|out of gas|fee.*exceeds/i.test(msg)) return 'Not enough balance to cover the network fee. Add funds and try again.'
+    if (/timed?.?out|network.*(error|request)|failed to fetch|connection/i.test(msg)) return 'Network timeout. Check your connection and retry.'
+    return 'Payment failed. Nothing was sent. Please try again.'
   }
 
   async function pay() {

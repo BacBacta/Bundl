@@ -57,7 +57,30 @@ const DISPERSE_ABI = [
     ],
     outputs: [],
   },
+  {
+    name: 'feeBps',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint96' }],
+  },
 ] as const
+
+/**
+ * Protocol fee in basis points, read from the contract (the contract charges
+ * it on top of the dispersed total — the app only mirrors it for display).
+ * Returns 0 if the contract is unreachable so display never blocks settlement.
+ */
+export async function getFeeBps(): Promise<number> {
+  try {
+    const client = getPublicClient()
+    return Number(
+      await client.readContract({ address: DISPERSE_ADDRESS, abi: DISPERSE_ABI, functionName: 'feeBps' }),
+    )
+  } catch {
+    return 0
+  }
+}
 
 export async function getTokenDecimals(tokenAddress: `0x${string}`): Promise<number> {
   const client = getPublicClient()
@@ -115,6 +138,41 @@ export async function ensureApproval(
 }
 
 /**
+ * Submit disperseToken and return the tx hash WITHOUT waiting for the receipt.
+ * Callers that need confirmation should follow up with waitForTx(hash) — keeping
+ * the two steps separate lets a timed-out wait be retried without re-submitting
+ * (and double-paying).
+ */
+export async function submitDisperse(
+  tokenAddress: `0x${string}`,
+  recipients: `0x${string}`[],
+  amounts: bigint[],
+  feeCurrency?: `0x${string}`,
+): Promise<`0x${string}`> {
+  const walletClient = getWalletClient()
+  if (!walletClient) throw new Error('No wallet — run inside MiniPay or a compatible browser wallet')
+
+  const account = await getAccount()
+  if (!account) throw new Error('No account found')
+
+  return walletClient.writeContract({
+    account,
+    address: DISPERSE_ADDRESS,
+    abi: DISPERSE_ABI,
+    functionName: 'disperseToken',
+    args: [tokenAddress, recipients, amounts],
+    type: 'legacy',
+    ...(feeCurrency ? { feeCurrency } : {}),
+  })
+}
+
+/** Wait for a submitted tx to confirm. Throws if the tx reverted. */
+export async function waitForTx(hash: `0x${string}`): Promise<void> {
+  const receipt = await getPublicClient().waitForTransactionReceipt({ hash })
+  if (receipt.status !== 'success') throw new Error('Transaction reverted')
+}
+
+/**
  * Call disperseToken: one tx fans out to N recipients directly (non-custodial).
  * Legacy tx type — no EIP-1559 fields.
  */
@@ -124,24 +182,8 @@ export async function disperseToken(
   amounts: bigint[],
   feeCurrency?: `0x${string}`,
 ): Promise<`0x${string}`> {
-  const publicClient = getPublicClient()
-  const walletClient = getWalletClient()
-  if (!walletClient) throw new Error('No wallet — run inside MiniPay or a compatible browser wallet')
-
-  const account = await getAccount()
-  if (!account) throw new Error('No account found')
-
-  const hash = await walletClient.writeContract({
-    account,
-    address: DISPERSE_ADDRESS,
-    abi: DISPERSE_ABI,
-    functionName: 'disperseToken',
-    args: [tokenAddress, recipients, amounts],
-    type: 'legacy',
-    ...(feeCurrency ? { feeCurrency } : {}),
-  })
-
-  await publicClient.waitForTransactionReceipt({ hash })
+  const hash = await submitDisperse(tokenAddress, recipients, amounts, feeCurrency)
+  await waitForTx(hash)
   return hash
 }
 

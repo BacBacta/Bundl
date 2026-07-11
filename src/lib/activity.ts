@@ -5,6 +5,7 @@ import { formatUnits } from 'viem'
 import { ACTIVE_CHAIN, celoMainnet } from './chains'
 import { TESTNET_STABLECOINS, STABLECOINS } from './tokens'
 import { resolveDisplayName } from './socialconnect'
+import { fetchWithTimeout } from './net'
 
 // Blockscout REST API base per network (free, no key, good pagination).
 const BLOCKSCOUT_API =
@@ -46,9 +47,11 @@ function median(nums: number[]): number {
 }
 
 function classifyCadence(gapDays: number): DetectedPayment['cadence'] {
-  if (gapDays >= 5 && gapDays <= 9) return 'weekly'
-  if (gapDays >= 12 && gapDays <= 18) return 'biweekly'
-  if (gapDays >= 25 && gapDays <= 38) return 'monthly'
+  // Contiguous ranges — a 10- or 20-day rhythm still maps to the nearest
+  // cadence instead of an unhelpful generic "recurring".
+  if (gapDays >= 4 && gapDays <= 10) return 'weekly'
+  if (gapDays > 10 && gapDays <= 21) return 'biweekly'
+  if (gapDays > 21 && gapDays <= 45) return 'monthly'
   return 'recurring'
 }
 
@@ -62,7 +65,7 @@ export async function detectRecurringPayments(
   let transfers: RawTransfer[] = []
   try {
     const url = `${BLOCKSCOUT_API}?module=account&action=tokentx&address=${userAddress}&sort=desc`
-    const res = await fetch(url)
+    const res = await fetchWithTimeout(url)
     const json = await res.json()
     if (json.status !== '1' || !Array.isArray(json.result)) return []
     transfers = json.result as RawTransfer[]
@@ -91,10 +94,12 @@ export async function detectRecurringPayments(
   for (const [recipient, txs] of byRecipient) {
     if (txs.length < 2) continue // one-off → not recurring
 
-    const decimals = Number(txs[0].tokenDecimal) || 18
+    const reported = Number(txs[0].tokenDecimal)
+    const decimals = reported >= 1 && reported <= 18 ? reported : 18
     const amounts = txs.map((t) => Number(formatUnits(BigInt(t.value), decimals)))
     const med = median(amounts)
-    if (med <= 0) continue
+    // Dust filter: repeated micro-transfers (tests, spam) are not bills.
+    if (med < 1) continue
 
     // Amount consistency: how many transfers are within ±25% of the median.
     const consistent = amounts.filter((a) => Math.abs(a - med) / med <= 0.25).length
