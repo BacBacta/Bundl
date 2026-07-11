@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { isAddress } from 'viem'
+import { isAddress, zeroAddress } from 'viem'
 import { Plus, Trash2, Contact, Repeat, Share2, Check, Home, Users, Briefcase, RotateCw, Tag, AlertTriangle } from 'lucide-react'
 import { BottomNav } from '@/components/BottomNav'
 import { RecipientRow } from '@/components/RecipientRow'
@@ -81,12 +81,26 @@ export default function RecurringPage() {
 
   const atFreeLimit = !isPro && items.length >= FREE_TIER_MAX_RECIPIENTS
 
+  // Draft autosave: an accidentally closed sheet or a reload must not eat a
+  // half-typed name + 42-char address. Session-scoped, cleared on save.
+  const DRAFT_KEY = 'bundl_recurring_draft'
+
+  useEffect(() => {
+    if (sheet !== 'add') return
+    try { sessionStorage.setItem(DRAFT_KEY, JSON.stringify(form)) } catch {}
+  }, [form, sheet])
+
   function openAdd() {
     if (atFreeLimit) {
       setSheet('limit')
       return
     }
-    setForm(EMPTY_FORM)
+    let draft = EMPTY_FORM
+    try {
+      const raw = sessionStorage.getItem(DRAFT_KEY)
+      if (raw) draft = { ...EMPTY_FORM, ...JSON.parse(raw) }
+    } catch {}
+    setForm(draft)
     setErrors({})
     setEditing(null)
     setSheet('add')
@@ -121,9 +135,10 @@ export default function RecurringPage() {
   function validate() {
     const e: Partial<typeof EMPTY_FORM> = {}
     if (!form.name.trim()) e.name = 'Required'
-    if (!isAddress(form.address)) e.address = 'Invalid address'
+    if (!isAddress(form.address) || form.address === zeroAddress) e.address = 'Invalid address'
     const amt = parseFloat(form.amount)
     if (isNaN(amt) || amt <= 0) e.amount = 'Enter a positive amount'
+    else if (amt > 100_000) e.amount = 'Amount too large — max $100,000'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -133,10 +148,11 @@ export default function RecurringPage() {
     const data = {
       name: form.name.trim(),
       address: form.address as `0x${string}`,
-      amount: parseFloat(form.amount),
+      amount: Math.round(parseFloat(form.amount) * 100) / 100,
       frequency: form.frequency,
       category: form.category,
     }
+    try { sessionStorage.removeItem(DRAFT_KEY) } catch {}
     // Whether typed manually or picked from contacts, remember this name
     // against the address so on-chain history can resolve it later even if
     // this Recurring entry is edited or deleted — not just at read-time.
@@ -160,7 +176,10 @@ export default function RecurringPage() {
   return (
     <main className="flex flex-col min-h-screen pb-24 px-4 pt-6">
       <div className="flex items-center justify-between mb-5">
-        <h1 className="text-title text-content">Recurring</h1>
+        <div>
+          <h1 className="text-title text-content">Payments</h1>
+          <p className="text-micro text-content-subtle">Reminders — you approve every payment</p>
+        </div>
         <div className="flex items-center gap-2">
           {items.length > 0 && (
             <button
